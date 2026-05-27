@@ -1,0 +1,222 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  TECHNICIAN
+  CLIENT_USER
+}
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum VisitStatus {
+  PENDING
+  CONFIRMED
+  COMPLETED
+  CANCELLED
+}
+
+model Company {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  phone     String?
+  address   String?
+  logoUrl   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users     User[]
+  products  Product[]
+  clients   Client[]
+  tickets   Ticket[]
+  inventory InventoryItem[]
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  name      String
+  role      Role
+  phone     String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  companyId String?
+  company   Company? @relation(fields: [companyId], references: [id], onDelete: SetNull)
+
+  // only set for CLIENT_USER
+  clientId String?
+  client   Client? @relation(fields: [clientId], references: [id], onDelete: SetNull)
+
+  assignedTickets Ticket[] @relation("TechnicianTickets")
+}
+
+model Product {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  category    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  equipment Equipment[]
+}
+
+model Client {
+  id           String   @id @default(cuid())
+  name         String
+  // AES-256-GCM encrypted at rest
+  contactEmail String
+  contactPhone String?
+  taxId        String?
+  address      String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  users           User[]
+  branches        Branch[]
+  tickets         Ticket[]
+  scheduledVisits ScheduledVisit[]
+}
+
+model Branch {
+  id          String   @id @default(cuid())
+  name        String
+  address     String
+  city        String?
+  phone       String?
+  contactName String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  clientId String
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  equipment       Equipment[]
+  tickets         Ticket[]
+  scheduledVisits ScheduledVisit[]
+}
+
+model Equipment {
+  id           String    @id @default(cuid())
+  name         String
+  serialNumber String?
+  model        String?
+  notes        String?
+  installedAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  productId String?
+  product   Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  branchId String
+  branch   Branch @relation(fields: [branchId], references: [id], onDelete: Cascade)
+
+  tickets Ticket[]
+}
+
+model Ticket {
+  id          String       @id @default(cuid())
+  title       String
+  description String?
+  status      TicketStatus @default(OPEN)
+  priority    Priority     @default(MEDIUM)
+  scheduledAt DateTime?
+  startedAt   DateTime?
+  closedAt    DateTime?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  clientId String
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  branchId String?
+  branch   Branch? @relation(fields: [branchId], references: [id], onDelete: SetNull)
+
+  equipmentId String?
+  equipment   Equipment? @relation(fields: [equipmentId], references: [id], onDelete: SetNull)
+
+  technicianId String?
+  technician   User?   @relation("TechnicianTickets", fields: [technicianId], references: [id], onDelete: SetNull)
+
+  report TicketReport?
+}
+
+model TicketReport {
+  id              String    @id @default(cuid())
+  findings        String
+  actions         String
+  partsUsed       String?
+  nextVisitDate   DateTime?
+  techSignature   String?
+  clientSignature String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  ticketId String @unique
+  ticket   Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+}
+
+model ScheduledVisit {
+  id          String      @id @default(cuid())
+  requestedAt DateTime
+  notes       String?
+  status      VisitStatus @default(PENDING)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  clientId String
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  branchId String?
+  branch   Branch? @relation(fields: [branchId], references: [id], onDelete: SetNull)
+
+  // linked once admin converts visit to ticket
+  ticketId String?
+}
+
+model InventoryItem {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  sku         String?
+  quantity    Int      @default(0)
+  unit        String?
+  minStock    Int?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+}
