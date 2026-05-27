@@ -29,11 +29,11 @@ export default function ClientsPage() {
   );
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="page-stack">
+      <div className="page-header">
         <div>
-          <h1 className="text-2xl font-bold">Clientes</h1>
-          <p className="text-muted-foreground text-sm">{clients.length} clientes registrados</p>
+          <h1 className="text-2xl font-bold tracking-tight">Clientes</h1>
+          <p className="text-muted-foreground text-sm mt-0.5">{clients.length} clientes registrados</p>
         </div>
         <Button asChild>
           <Link href="/admin/clients/new"><Plus className="h-4 w-4 mr-1" />Nuevo cliente</Link>
@@ -59,7 +59,7 @@ export default function ClientsPage() {
         <div className="grid gap-3">
           {filtered.map((c) => (
             <Card key={c.id} className="hover:shadow-md transition-shadow">
-              <CardContent className="p-4 flex items-center justify-between">
+              <CardContent className="card-content-tight flex items-center justify-between">
                 <div className="min-w-0">
                   <p className="font-semibold truncate">{c.name}</p>
                   <p className="text-sm text-muted-foreground truncate">{c.contactEmail}</p>

@@ -39,10 +39,12 @@ export default function AdminVisitsPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Visitas programadas</h1>
-        <p className="text-muted-foreground text-sm">{visits.length} solicitudes</p>
+    <div className="page-stack">
+      <div className="page-header">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Visitas programadas</h1>
+          <p className="text-muted-foreground text-sm mt-0.5">{visits.length} solicitudes</p>
+        </div>
       </div>
 
       <div className="flex gap-2 flex-wrap">
@@ -67,7 +69,7 @@ export default function AdminVisitsPage() {
         <div className="grid gap-3">
           {visits.map((v) => (
             <Card key={v.id}>
-              <CardContent className="p-4 flex items-start justify-between gap-3">
+              <CardContent className="card-content-tight flex items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
                   <p className="font-semibold">{v.client?.name}</p>
                   <p className="text-sm text-muted-foreground">{formatDate(v.requestedAt)}</p>

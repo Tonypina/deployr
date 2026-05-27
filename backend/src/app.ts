@@ -11,6 +11,8 @@ import equipmentRoutes from "./routes/equipment.routes";
 import productRoutes from "./routes/product.routes";
 import ticketRoutes from "./routes/ticket.routes";
 import reportRoutes from "./routes/report.routes";
+import reportTemplateRoutes from "./routes/report-template.routes";
+import cronRoutes from "./routes/cron.routes";
 import inventoryRoutes from "./routes/inventory.routes";
 import visitRoutes from "./routes/visit.routes";
 
@@ -43,6 +45,8 @@ app.use("/api/tickets", ticketRoutes);
 app.use("/api/tickets/:ticketId/report", reportRoutes);
 app.use("/api/inventory", inventoryRoutes);
 app.use("/api/visits", visitRoutes);
+app.use("/api/report-templates", reportTemplateRoutes);
+app.use("/api/cron", cronRoutes);
 
 app.use(notFound);
 app.use(errorHandler);

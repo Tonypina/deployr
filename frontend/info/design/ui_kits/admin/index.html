@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>deployr — Admin console UI kit</title>
+<link rel="stylesheet" href="../_shared/ds.css"/>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<script type="text/babel" src="../_shared/icons.jsx"></script>
+<script type="text/babel" src="../_shared/components.jsx"></script>
+<script type="text/babel" src="../_shared/sample-data.jsx"></script>
+<script type="text/babel" src="Dashboard.jsx"></script>
+<script type="text/babel" src="Tickets.jsx"></script>
+<script type="text/babel" src="Inventory.jsx"></script>
+<script type="text/babel" src="Visits.jsx"></script>
+<script type="text/babel" src="Technicians.jsx"></script>
+
+<script type="text/babel">
+const ADMIN_NAV = [
+  { label: "Dashboard",  href: "/admin",            icon: "layout" },
+  { label: "Técnicos",   href: "/admin/technicians",icon: "users" },
+  { label: "Clientes",   href: "/admin/clients",    icon: "building" },
+  { label: "Tickets",    href: "/admin/tickets",    icon: "ticket" },
+  { label: "Inventario", href: "/admin/inventory",  icon: "package" },
+  { label: "Productos",  href: "/admin/products",   icon: "wrench" },
+  { label: "Visitas",    href: "/admin/visits",     icon: "calendar" },
+];
+
+function AdminApp() {
+  const [active, setActive] = React.useState("/admin");
+  const [tickets, setTickets] = React.useState(SAMPLE.tickets);
+  const [clients] = React.useState(SAMPLE.clients);
+  const [technicians, setTechnicians] = React.useState(SAMPLE.technicians);
+  const [inventory, setInventory] = React.useState(SAMPLE.inventory);
+  const [visits, setVisits] = React.useState(SAMPLE.visits);
+  const { toast, show } = useToast();
+
+  function openTicket(id) {
+    setActive("/admin/tickets");
+    show({ title: "Ver ticket", description: `ID: ${id} — (en la app real, abre /admin/tickets/${id})` });
+  }
+
+  let page = null;
+  switch (active) {
+    case "/admin":
+      page = <Dashboard data={{ tickets, clients, inventory }} onOpenTicket={openTicket} />;
+      break;
+    case "/admin/tickets":
+      page = <AdminTickets tickets={tickets} onOpenTicket={openTicket} onCreate={() => show({ title: "Nuevo ticket", description: "Abre el formulario en /admin/tickets/new" })} />;
+      break;
+    case "/admin/inventory":
+      page = <AdminInventory items={inventory} setItems={setInventory} onToast={show} />;
+      break;
+    case "/admin/visits":
+      page = <AdminVisits visits={visits} setVisits={setVisits} onToast={show} />;
+      break;
+    case "/admin/technicians":
+      page = <AdminTechnicians technicians={technicians} setTechnicians={setTechnicians} onToast={show} />;
+      break;
+    case "/admin/clients":
+      page = (
+        <div className="page-stack">
+          <PageHeader title="Clientes" subtitle={`${clients.length} clientes registrados`} action={<button className="btn btn-primary"><Icon name="plus" />Nuevo cliente</button>} />
+          <div style={{ position: "relative", maxWidth: 360 }}>
+            <Icon name="search" size={16} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "var(--fg-muted)" }} />
+            <input className="input" placeholder="Buscar..." style={{ paddingLeft: 36 }} />
+          </div>
+          <div className="col" style={{ gap: 12 }}>
+            {clients.map(c => (
+              <div key={c.id} className="card card-hover">
+                <div className="card-content-tight" style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <div style={{ minWidth: 0 }}>
+                    <div className="font-semibold truncate">{c.name}</div>
+                    <div className="text-sm muted truncate">{c.contactEmail}</div>
+                    <div className="row" style={{ gap: 16, marginTop: 4 }}>
+                      <span className="text-xs muted">{c._count.branches} sucursales</span>
+                      <span className="text-xs muted">{c._count.tickets} tickets</span>
+                    </div>
+                  </div>
+                  <button className="btn btn-ghost btn-icon"><Icon name="chevron-right" /></button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+      break;
+    case "/admin/products":
+      page = (
+        <div className="page-stack">
+          <PageHeader title="Productos / Servicios" subtitle="3 productos" action={<button className="btn btn-primary"><Icon name="plus" />Nuevo producto</button>} />
+          <div className="grid-3">
+            {[
+              { name: "Compresor de aire", category: "Industrial", description: "Equipos de aire comprimido para uso industrial.", count: 12 },
+              { name: "Aire acondicionado", category: "HVAC", description: "Sistemas de climatización comerciales y residenciales.", count: 18 },
+              { name: "Bomba de agua", category: "Industrial", description: "Sistemas de bombeo y presurización.", count: 7 },
+            ].map(p => (
+              <div key={p.name} className="card">
+                <div className="card-content-tight">
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+                    <div>
+                      <div className="font-semibold">{p.name}</div>
+                      <div className="text-xs muted">{p.category}</div>
+                      <div className="text-sm muted" style={{ marginTop: 4 }}>{p.description}</div>
+                      <div className="text-xs muted" style={{ marginTop: 8 }}>{p.count} equipos vinculados</div>
+                    </div>
+                    <button className="btn btn-ghost btn-sm" style={{ color: "var(--destructive)" }}>Eliminar</button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+      break;
+    default:
+      page = <Dashboard data={{ tickets, clients, inventory }} onOpenTicket={openTicket} />;
+  }
+
+  return (
+    <div className="app-shell">
+      <Sidebar
+        userName="Servicios XYZ"
+        role="admin"
+        nav={ADMIN_NAV}
+        activeHref={active}
+        onNavigate={setActive}
+        onLogout={() => show({ title: "Cerrar sesión", description: "Vuelves a /login" })}
+      />
+      <main className="main">{page}</main>
+      <Toast toast={toast} />
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<AdminApp />);
+</script>
+</body>
+</html>

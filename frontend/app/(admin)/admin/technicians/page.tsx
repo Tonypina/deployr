@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -67,11 +67,11 @@ export default function TechniciansPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="page-stack">
+      <div className="page-header">
         <div>
-          <h1 className="text-2xl font-bold">Técnicos</h1>
-          <p className="text-muted-foreground text-sm">{technicians.length} técnicos registrados</p>
+          <h1 className="text-2xl font-bold tracking-tight">Técnicos</h1>
+          <p className="text-muted-foreground text-sm mt-0.5">{technicians.length} técnicos registrados</p>
         </div>
         <Button onClick={() => setShowForm(!showForm)}>
           <Plus className="h-4 w-4 mr-1" />Nuevo técnico
@@ -125,11 +125,16 @@ export default function TechniciansPage() {
         <div className="grid gap-3">
           {technicians.map((t) => (
             <Card key={t.id}>
-              <CardContent className="p-4 flex items-center justify-between">
+              <CardContent className="card-content-tight flex items-center justify-between">
                 <div>
                   <div className="flex items-center gap-2">
                     <p className="font-semibold">{t.name}</p>
-                    <Badge variant={t.isActive ? "default" : "secondary"}>{t.isActive ? "Activo" : "Inactivo"}</Badge>
+                    <span className={cn(
+                      "text-xs px-2 py-0.5 rounded-full font-medium",
+                      t.isActive ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600"
+                    )}>
+                      {t.isActive ? "Activo" : "Inactivo"}
+                    </span>
                   </div>
                   <p className="text-sm text-muted-foreground">{t.email}</p>
                   {t.phone && <p className="text-xs text-muted-foreground">{t.phone}</p>}
@@ -150,3 +155,4 @@ export default function TechniciansPage() {
     </div>
   );
 }
+

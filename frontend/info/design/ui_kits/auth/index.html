@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>deployr — Auth UI kit</title>
+<link rel="stylesheet" href="../_shared/ds.css"/>
+<style>
+  body { background: var(--slate-50); }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<script type="text/babel" src="../_shared/icons.jsx"></script>
+<script type="text/babel" src="../_shared/components.jsx"></script>
+<script type="text/babel" src="Login.jsx"></script>
+<script type="text/babel" src="Register.jsx"></script>
+
+<script type="text/babel">
+function AuthApp() {
+  const [screen, setScreen] = React.useState("login");
+  const [success, setSuccess] = React.useState(null);
+
+  if (success) {
+    return (
+      <div className="auth-shell">
+        <div className="auth-card" style={{ padding: "40px 32px", textAlign: "center" }}>
+          <div style={{ width: 56, height: 56, borderRadius: 9999, background: "#dcfce7", color: "#166534", display: "inline-flex", alignItems: "center", justifyContent: "center", marginBottom: 16 }}>
+            <Icon name="clipboard-check" size={26} />
+          </div>
+          <div className="card-title-lg">{success === "login" ? "Sesión iniciada" : "Cuenta creada"}</div>
+          <div className="card-description" style={{ marginTop: 8 }}>
+            En la app real serías redirigido a <span className="font-medium">{success === "login" ? "/admin" : "/admin"}</span>. Vuelve al inicio para probar el otro flujo.
+          </div>
+          <button className="btn btn-outline" style={{ marginTop: 20 }} onClick={() => { setSuccess(null); setScreen("login"); }}>
+            Volver
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return screen === "login"
+    ? <Login onSwitch={() => setScreen("register")} onLoginSuccess={() => setSuccess("login")} />
+    : <Register onSwitch={() => setScreen("login")} onRegisterSuccess={() => setSuccess("register")} />;
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<AuthApp />);
+</script>
+</body>
+</html>

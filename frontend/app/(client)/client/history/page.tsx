@@ -22,10 +22,12 @@ export default function HistoryPage() {
   }, []);
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Historial de servicios</h1>
-        <p className="text-muted-foreground text-sm">{tickets.length} servicios completados</p>
+    <div className="page-stack">
+      <div className="page-header">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Historial de servicios</h1>
+          <p className="text-muted-foreground text-sm mt-0.5">{tickets.length} servicios completados</p>
+        </div>
       </div>
 
       {loading ? (
@@ -42,7 +44,7 @@ export default function HistoryPage() {
         <div className="grid gap-3">
           {tickets.map((t) => (
             <Card key={t.id} className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => setSelected(selected?.id === t.id ? null : t)}>
-              <CardContent className="p-4">
+              <CardContent className="card-content-tight">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
                     <div className="flex gap-2 mb-1 flex-wrap">
@@ -52,7 +54,7 @@ export default function HistoryPage() {
                     <p className="font-semibold truncate">{t.title}</p>
                     {t.branch && <p className="text-sm text-muted-foreground">{t.branch.name}{t.branch.city ? ` - ${t.branch.city}` : ""}</p>}
                     <p className="text-xs text-muted-foreground mt-1">
-                      Completado: {formatDate(t.closedAt ?? t.updatedAt)}
+                      Completado: {formatDate(t.closedAt ?? t.createdAt)}
                       {t.technician && ` · ${t.technician.name}`}
                     </p>
                   </div>

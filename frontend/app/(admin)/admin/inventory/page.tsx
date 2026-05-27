@@ -72,11 +72,11 @@ export default function InventoryPage() {
   const lowStock = items.filter((i) => i.minStock != null && i.quantity <= i.minStock);
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="page-stack">
+      <div className="page-header">
         <div>
-          <h1 className="text-2xl font-bold">Inventario</h1>
-          <p className="text-muted-foreground text-sm">{items.length} items · {lowStock.length} bajo stock</p>
+          <h1 className="text-2xl font-bold tracking-tight">Inventario</h1>
+          <p className="text-muted-foreground text-sm mt-0.5">{items.length} items · {lowStock.length} bajo stock</p>
         </div>
         <Button onClick={() => setShowForm(!showForm)}>
           <Plus className="h-4 w-4 mr-1" />Agregar item
@@ -126,7 +126,7 @@ export default function InventoryPage() {
             const isLow = item.minStock != null && item.quantity <= item.minStock;
             return (
               <Card key={item.id} className={isLow ? "border-destructive/50" : ""}>
-                <CardContent className="p-4 flex items-center justify-between gap-4">
+                <CardContent className="card-content-tight flex items-center justify-between gap-4">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <p className="font-semibold">{item.name}</p>

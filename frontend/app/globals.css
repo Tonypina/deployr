@@ -24,6 +24,17 @@
     --input: 214.3 31.8% 91.4%;
     --ring: 221.2 83.2% 53.3%;
     --radius: 0.5rem;
+
+    /* Brand accent tokens (used sparingly for marketing surfaces) */
+    --brand-maroon-900: #4A0E14;
+    --brand-pink-200: #F1C9CB;
+    --brand-rose-500: #E26C72;
+
+    /* Sidebar palette */
+    --sidebar-bg: #0f172a;
+    --sidebar-hover: #1e293b;
+    --sidebar-active: #334155;
+    --sidebar-text: #cbd5e1;
   }
 
   .dark {
@@ -49,5 +60,62 @@
 
 @layer base {
   * { @apply border-border; }
-  body { @apply bg-background text-foreground; }
+  body { @apply bg-background text-foreground; font-family: var(--font-sans, "Inter", system-ui, sans-serif); }
+}
+
+/* ── Design-system layout primitives ── */
+@layer utilities {
+  /* Auth */
+  .auth-shell {
+    @apply min-h-screen flex items-center justify-center bg-slate-50 p-4;
+  }
+  .auth-card {
+    @apply w-full max-w-sm bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden;
+  }
+  .auth-card-md {
+    @apply max-w-[480px];
+  }
+  .auth-header {
+    @apply px-6 pt-6 pb-0;
+  }
+  .auth-body {
+    @apply px-6 py-4 flex flex-col gap-4;
+  }
+  .auth-footer {
+    @apply px-6 pb-6 flex flex-col gap-3;
+  }
+
+  /* Page structure */
+  .page-stack > * + * {
+    @apply mt-6;
+  }
+  .page-header {
+    @apply flex items-center justify-between gap-4;
+  }
+
+  /* Stats */
+  .stats-grid {
+    @apply grid gap-4;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  }
+
+  /* List rows */
+  .list-rows > * + * {
+    @apply border-t border-border pt-3 mt-3;
+  }
+
+  /* Card variants */
+  .card-content-tight {
+    @apply p-4;
+  }
+
+  /* Meta separator */
+  .meta-sep::before {
+    content: " · ";
+  }
+
+  /* Display font */
+  .font-display {
+    font-family: var(--font-display, "Saira Condensed", system-ui, sans-serif);
+  }
 }

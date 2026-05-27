@@ -27,18 +27,20 @@ export default function ClientDashboard() {
       .finally(() => setLoading(false));
   }, []);
 
-  const active = tickets.filter((t) => t.status === "OPEN" || t.status === "IN_PROGRESS");
-  const completed = tickets.filter((t) => t.status === "COMPLETED");
+  const active = tickets.filter((t) => ["PENDING", "ASSIGNED", "IN_PROGRESS"].includes(t.status));
+  const completed = tickets.filter((t) => t.status === "COMPLETED" || t.status === "CLOSED");
   const pending = visits.filter((v) => v.status === "PENDING" || v.status === "CONFIRMED");
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Mi Panel</h1>
-        <p className="text-muted-foreground text-sm">Resumen de tus servicios</p>
+    <div className="page-stack">
+      <div className="page-header">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Mi Panel</h1>
+          <p className="text-muted-foreground text-sm mt-0.5">Resumen de tus servicios</p>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="stats-grid">
         <StatsCard title="Tickets activos" value={loading ? "—" : active.length} icon={Ticket} color="text-blue-600" />
         <StatsCard title="Visitas programadas" value={loading ? "—" : pending.length} icon={Calendar} color="text-orange-500" />
         <StatsCard title="Servicios completados" value={loading ? "—" : completed.length} icon={ClipboardCheck} color="text-green-600" />
@@ -50,9 +52,9 @@ export default function ClientDashboard() {
           <CardContent>
             {loading ? <p className="text-sm text-muted-foreground">Cargando...</p> :
               !tickets.length ? <p className="text-sm text-muted-foreground">Sin tickets</p> :
-              <div className="space-y-3">
+              <div className="list-rows">
                 {tickets.slice(0, 5).map((t) => (
-                  <div key={t.id} className="flex items-start justify-between gap-2 border-b pb-3 last:border-0">
+                  <div key={t.id} className="flex items-start justify-between gap-2">
                     <div>
                       <p className="text-sm font-medium">{t.title}</p>
                       <p className="text-xs text-muted-foreground">{formatDate(t.createdAt)}</p>
@@ -70,9 +72,9 @@ export default function ClientDashboard() {
           <CardContent>
             {loading ? <p className="text-sm text-muted-foreground">Cargando...</p> :
               !pending.length ? <p className="text-sm text-muted-foreground">Sin visitas programadas</p> :
-              <div className="space-y-3">
+              <div className="list-rows">
                 {pending.slice(0, 5).map((v) => (
-                  <div key={v.id} className="flex items-start justify-between gap-2 border-b pb-3 last:border-0">
+                  <div key={v.id} className="flex items-start justify-between gap-2">
                     <div>
                       <p className="text-sm font-medium">{formatDate(v.requestedAt)}</p>
                       {v.branch && <p className="text-xs text-muted-foreground">{v.branch.name}</p>}

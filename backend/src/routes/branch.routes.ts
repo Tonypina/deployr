@@ -12,6 +12,7 @@ const branchSchema = z.object({
   city: z.string().optional(),
   phone: z.string().optional(),
   contactName: z.string().optional(),
+  contactEmail: z.string().email().optional(),
 });
 
 router.use(authenticate, requireAdmin);

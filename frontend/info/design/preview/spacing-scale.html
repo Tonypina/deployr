@@ -1,0 +1,80 @@
+<!doctype html><html><head><meta charset="utf-8">
+<style>
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Saira+Condensed:wght@700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap");
+:root {
+  --bg:#fff; --fg:#0a0f1c; --fg-muted:#64748b; --border:#e2e8f0;
+  --primary:#2563eb; --primary-90:#1d4ed8; --destructive:#ef4444; --muted:#f1f5f9;
+  --slate-50:#f8fafc; --slate-100:#f1f5f9; --slate-200:#e2e8f0; --slate-300:#cbd5e1;
+  --slate-400:#94a3b8; --slate-500:#64748b; --slate-700:#334155; --slate-800:#1e293b; --slate-900:#0f172a;
+  --brand-maroon-950:#2A070A; --brand-maroon-900:#4A0E14; --brand-maroon-800:#6B1722;
+  --brand-red-600:#A82A35; --brand-red-500:#C9333F; --brand-pink-200:#F1C9CB; --brand-pink-100:#FAE6E6; --brand-rose-500:#E26C72;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{font-family:"Inter",system-ui,sans-serif;color:var(--fg);background:var(--bg);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+.pad{padding:24px}
+.eyebrow{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.14em;color:var(--fg-muted)}
+.mono{font-family:"JetBrains Mono",monospace}
+.row{display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap}
+.col{display:flex;flex-direction:column;gap:6px}
+.swatch{display:flex;flex-direction:column;gap:6px;min-width:80px}
+.chip{width:80px;height:64px;border-radius:8px;border:1px solid var(--border)}
+.chip-sm{width:56px;height:56px;border-radius:8px;border:1px solid var(--border)}
+.lbl{font-size:12px;font-weight:500;color:var(--fg)}
+.hex{font-size:10px;font-family:"JetBrains Mono",monospace;color:var(--fg-muted)}
+.pill{display:inline-flex;align-items:center;padding:2px 10px;border-radius:9999px;font-size:12px;font-weight:600}
+.card-prim{background:#fff;border:1px solid var(--border);border-radius:8px;box-shadow:0 1px 2px 0 rgb(0 0 0 / .05)}
+.btn{display:inline-flex;align-items:center;gap:8px;height:40px;padding:0 16px;border-radius:6px;font-size:14px;font-weight:500;border:1px solid transparent;cursor:pointer;font-family:inherit;transition:.15s}
+.btn-primary{background:var(--primary);color:#fff}
+.btn-primary:hover{background:var(--primary-90)}
+.btn-outline{background:#fff;border-color:var(--border);color:var(--fg)}
+.btn-outline:hover{background:var(--slate-100)}
+.btn-ghost{background:transparent;color:var(--fg)}
+.btn-ghost:hover{background:var(--slate-100)}
+.btn-destructive{background:var(--destructive);color:#fff}
+.btn-secondary{background:var(--slate-100);color:var(--slate-900)}
+.btn-link{background:transparent;color:var(--primary);text-decoration:underline;text-underline-offset:4px}
+.btn-sm{height:36px;padding:0 12px;font-size:13px}
+.btn-lg{height:44px;padding:0 32px}
+.btn-icon{height:40px;width:40px;padding:0;justify-content:center}
+.input{display:flex;height:40px;width:100%;border-radius:6px;border:1px solid var(--border);background:#fff;padding:8px 12px;font-size:14px;font-family:inherit;color:var(--fg);outline:none}
+.input:focus{box-shadow:0 0 0 2px var(--primary)}
+.input::placeholder{color:var(--fg-muted)}
+.label{font-size:14px;font-weight:500;line-height:1}
+</style>
+</head><body><!-- @dsCard group="Spacing" -->
+<div class="pad">
+  <div class="eyebrow" style="margin-bottom:14px">Spacing scale (Tailwind defaults)</div>
+  <div class="col" style="gap:8px">
+    
+    <div style="display:flex;align-items:center;gap:14px">
+      <div style="width:60px"><span class="mono" style="font-size:12px">1</span> <span class="hex">4px</span></div>
+      <div style="height:14px;background:var(--primary);width:8px;border-radius:2px;opacity:.85"></div>
+      <div class="hex">gap between pill clusters</div>
+    </div>
+    <div style="display:flex;align-items:center;gap:14px">
+      <div style="width:60px"><span class="mono" style="font-size:12px">2</span> <span class="hex">8px</span></div>
+      <div style="height:14px;background:var(--primary);width:16px;border-radius:2px;opacity:.85"></div>
+      <div class="hex">gap between buttons in a row</div>
+    </div>
+    <div style="display:flex;align-items:center;gap:14px">
+      <div style="width:60px"><span class="mono" style="font-size:12px">3</span> <span class="hex">12px</span></div>
+      <div style="height:14px;background:var(--primary);width:24px;border-radius:2px;opacity:.85"></div>
+      <div class="hex">list-row vertical spacing</div>
+    </div>
+    <div style="display:flex;align-items:center;gap:14px">
+      <div style="width:60px"><span class="mono" style="font-size:12px">4</span> <span class="hex">16px</span></div>
+      <div style="height:14px;background:var(--primary);width:32px;border-radius:2px;opacity:.85"></div>
+      <div class="hex">CardContent.p-4 padding</div>
+    </div>
+    <div style="display:flex;align-items:center;gap:14px">
+      <div style="width:60px"><span class="mono" style="font-size:12px">6</span> <span class="hex">24px</span></div>
+      <div style="height:14px;background:var(--primary);width:48px;border-radius:2px;opacity:.85"></div>
+      <div class="hex">page rhythm (space-y-6), Card.p-6</div>
+    </div>
+    <div style="display:flex;align-items:center;gap:14px">
+      <div style="width:60px"><span class="mono" style="font-size:12px">8</span> <span class="hex">32px</span></div>
+      <div style="height:14px;background:var(--primary);width:64px;border-radius:2px;opacity:.85"></div>
+      <div class="hex">section breaks in long forms</div>
+    </div>
+  </div>
+</div></body></html>

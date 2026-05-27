@@ -70,10 +70,12 @@ export default function SchedulePage() {
   }
 
   return (
-    <div className="space-y-6 max-w-2xl">
-      <div>
-        <h1 className="text-2xl font-bold">Agendar visita</h1>
-        <p className="text-muted-foreground text-sm">Solicita una visita técnica</p>
+    <div className="page-stack max-w-2xl">
+      <div className="page-header">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Agendar visita</h1>
+          <p className="text-muted-foreground text-sm mt-0.5">Solicita una visita técnica</p>
+        </div>
       </div>
 
       <Card>
@@ -123,7 +125,7 @@ export default function SchedulePage() {
           <div className="grid gap-3">
             {visits.map((v) => (
               <Card key={v.id}>
-                <CardContent className="p-4 flex items-start justify-between gap-3">
+                <CardContent className="card-content-tight flex items-start justify-between gap-3">
                   <div>
                     <p className="font-medium">{formatDate(v.requestedAt)}</p>
                     {v.branch && <p className="text-sm text-muted-foreground">{v.branch.name}</p>}

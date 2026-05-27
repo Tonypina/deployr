@@ -10,7 +10,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { cn, statusColor, statusLabel, priorityColor, priorityLabel, formatDate } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
 
-const STATUSES: (TicketStatus | "")[] = ["", "OPEN", "IN_PROGRESS", "COMPLETED"];
+const STATUSES: (TicketStatus | "")[] = ["", "ASSIGNED", "IN_PROGRESS", "COMPLETED", "CLOSED"];
 
 export default function TechDashboard() {
   const [tickets, setTickets] = useState<Ticket[]>([]);
@@ -26,10 +26,12 @@ export default function TechDashboard() {
   }, [filter]);
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Mis Tickets</h1>
-        <p className="text-muted-foreground text-sm">{tickets.length} asignados</p>
+    <div className="page-stack">
+      <div className="page-header">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Mis Tickets</h1>
+          <p className="text-muted-foreground text-sm mt-0.5">{tickets.length} asignados</p>
+        </div>
       </div>
 
       <div className="flex gap-2 flex-wrap">
@@ -53,7 +55,7 @@ export default function TechDashboard() {
         <div className="grid gap-3">
           {tickets.map((t) => (
             <Card key={t.id} className="hover:shadow-md transition-shadow">
-              <CardContent className="p-4">
+              <CardContent className="card-content-tight">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
                     <div className="flex gap-2 mb-1 flex-wrap">

@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>deployr — Client portal UI kit</title>
+<link rel="stylesheet" href="../_shared/ds.css"/>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<script type="text/babel" src="../_shared/icons.jsx"></script>
+<script type="text/babel" src="../_shared/components.jsx"></script>
+<script type="text/babel" src="../_shared/sample-data.jsx"></script>
+<script type="text/babel" src="Dashboard.jsx"></script>
+<script type="text/babel" src="Schedule.jsx"></script>
+<script type="text/babel" src="History.jsx"></script>
+
+<script type="text/babel">
+const CLIENT_NAV = [
+  { label: "Dashboard",       href: "/client",          icon: "layout" },
+  { label: "Agendar Visita",  href: "/client/schedule", icon: "calendar" },
+  { label: "Historial",       href: "/client/history",  icon: "history" },
+];
+
+function ClientApp() {
+  const [active, setActive] = React.useState("/client");
+  // Client sees only their own tickets — narrow sample data to client c1.
+  const initial = SAMPLE.tickets.filter(t => t.client.id === "c1");
+  const [tickets] = React.useState(initial);
+  const [visits, setVisits] = React.useState(SAMPLE.visits.filter(v => v.client.id === "c1"));
+  const { toast, show } = useToast();
+
+  function addVisit(v) { setVisits(prev => [v, ...prev]); }
+
+  let page = null;
+  switch (active) {
+    case "/client":          page = <ClientDashboard tickets={tickets} visits={visits} />; break;
+    case "/client/schedule": page = <ClientSchedule visits={visits} addVisit={addVisit} onToast={show} />; break;
+    case "/client/history":  page = <ClientHistory tickets={tickets} />; break;
+    default:                 page = <ClientDashboard tickets={tickets} visits={visits} />;
+  }
+
+  return (
+    <div className="app-shell">
+      <Sidebar
+        userName="Servicios XYZ"
+        role="cliente"
+        nav={CLIENT_NAV}
+        activeHref={active}
+        onNavigate={setActive}
+        onLogout={() => show({ title: "Cerrar sesión" })}
+      />
+      <main className="main">{page}</main>
+      <Toast toast={toast} />
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<ClientApp />);
+</script>
+</body>
+</html>

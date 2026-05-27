@@ -1,5 +1,6 @@
 export type Role = "ADMIN" | "TECHNICIAN" | "CLIENT_USER";
-export type TicketStatus = "OPEN" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED";
+export type FieldType = "TEXT" | "TEXTAREA" | "DATE" | "NUMBER" | "PHOTO" | "MULTISELECT";
+export type TicketStatus = "PENDING" | "ASSIGNED" | "IN_PROGRESS" | "COMPLETED" | "CLOSED" | "CANCELLED" | "EXPIRED";
 export type Priority = "LOW" | "MEDIUM" | "HIGH" | "URGENT";
 export type VisitStatus = "PENDING" | "CONFIRMED" | "COMPLETED" | "CANCELLED";
 
@@ -20,6 +21,27 @@ export interface Company {
   address?: string;
 }
 
+export interface ReportTemplateField {
+  id: string;
+  label: string;
+  type: FieldType;
+  required: boolean;
+  order: number;
+  options: string[];
+  templateId: string;
+}
+
+export interface ReportTemplate {
+  id: string;
+  name: string;
+  description?: string;
+  isDefault: boolean;
+  companyId: string;
+  fields?: ReportTemplateField[];
+  _count?: { clients: number; fields: number };
+  createdAt: string;
+}
+
 export interface Client {
   id: string;
   name: string;
@@ -28,6 +50,8 @@ export interface Client {
   taxId?: string;
   address?: string;
   companyId: string;
+  templateId?: string;
+  template?: ReportTemplate;
   createdAt: string;
   _count?: { branches: number; tickets: number };
 }
@@ -39,6 +63,7 @@ export interface Branch {
   city?: string;
   phone?: string;
   contactName?: string;
+  contactEmail?: string;
   clientId: string;
   _count?: { equipment: number; tickets: number };
 }
@@ -46,6 +71,7 @@ export interface Branch {
 export interface Equipment {
   id: string;
   name: string;
+  brand?: string;
   serialNumber?: string;
   model?: string;
   notes?: string;
@@ -94,10 +120,9 @@ export interface Ticket {
 
 export interface TicketReport {
   id: string;
-  findings: string;
-  actions: string;
-  partsUsed?: string;
-  nextVisitDate?: string;
+  responses: Record<string, string>;
+  templateId: string;
+  template?: ReportTemplate & { fields: ReportTemplateField[] };
   techSignature?: string;
   clientSignature?: string;
   ticketId: string;

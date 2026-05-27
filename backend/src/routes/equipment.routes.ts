@@ -8,6 +8,7 @@ const router = Router({ mergeParams: true }); // /api/clients/:clientId/branches
 
 const equipmentSchema = z.object({
   name: z.string().min(2),
+  brand: z.string().optional(),
   serialNumber: z.string().optional(),
   model: z.string().optional(),
   notes: z.string().optional(),

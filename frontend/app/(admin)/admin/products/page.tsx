@@ -66,11 +66,11 @@ export default function ProductsPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="page-stack">
+      <div className="page-header">
         <div>
-          <h1 className="text-2xl font-bold">Productos / Servicios</h1>
-          <p className="text-muted-foreground text-sm">{products.length} productos</p>
+          <h1 className="text-2xl font-bold tracking-tight">Productos / Servicios</h1>
+          <p className="text-muted-foreground text-sm mt-0.5">{products.length} productos</p>
         </div>
         <Button onClick={() => setShowForm(!showForm)}>
           <Plus className="h-4 w-4 mr-1" />Nuevo producto

@@ -13,11 +13,23 @@ enum Role {
   CLIENT_USER
 }
 
+enum FieldType {
+  TEXT
+  TEXTAREA
+  DATE
+  NUMBER
+  PHOTO
+  MULTISELECT
+}
+
 enum TicketStatus {
-  OPEN
+  PENDING
+  ASSIGNED
   IN_PROGRESS
   COMPLETED
+  CLOSED
   CANCELLED
+  EXPIRED
 }
 
 enum Priority {
@@ -44,11 +56,12 @@ model Company {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  users     User[]
-  products  Product[]
-  clients   Client[]
-  tickets   Ticket[]
-  inventory InventoryItem[]
+  users           User[]
+  products        Product[]
+  clients         Client[]
+  tickets         Ticket[]
+  inventory       InventoryItem[]
+  reportTemplates ReportTemplate[]
 }
 
 model User {
@@ -100,6 +113,9 @@ model Client {
   companyId String
   company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
+  templateId String?
+  template   ReportTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+
   users           User[]
   branches        Branch[]
   tickets         Ticket[]
@@ -107,14 +123,15 @@ model Client {
 }
 
 model Branch {
-  id          String   @id @default(cuid())
-  name        String
-  address     String
-  city        String?
-  phone       String?
-  contactName String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id           String   @id @default(cuid())
+  name         String
+  address      String
+  city         String?
+  phone        String?
+  contactName  String?
+  contactEmail String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   clientId String
   client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
@@ -127,6 +144,7 @@ model Branch {
 model Equipment {
   id           String    @id @default(cuid())
   name         String
+  brand        String?
   serialNumber String?
   model        String?
   notes        String?
@@ -147,7 +165,7 @@ model Ticket {
   id          String       @id @default(cuid())
   title       String
   description String?
-  status      TicketStatus @default(OPEN)
+  status      TicketStatus @default(PENDING)
   priority    Priority     @default(MEDIUM)
   scheduledAt DateTime?
   startedAt   DateTime?
@@ -174,18 +192,47 @@ model Ticket {
 }
 
 model TicketReport {
-  id              String    @id @default(cuid())
-  findings        String
-  actions         String
-  partsUsed       String?
-  nextVisitDate   DateTime?
+  id              String   @id @default(cuid())
+  responses       Json
   techSignature   String?
   clientSignature String?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  templateId String
+  template   ReportTemplate @relation(fields: [templateId], references: [id])
 
   ticketId String @unique
   ticket   Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+}
+
+model ReportTemplate {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  isDefault   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  fields  ReportTemplateField[]
+  clients Client[]
+  reports TicketReport[]
+}
+
+model ReportTemplateField {
+  id        String    @id @default(cuid())
+  label     String
+  type      FieldType @default(TEXTAREA)
+  required  Boolean   @default(false)
+  order     Int       @default(0)
+  options   String[]  // only used for MULTISELECT type
+  createdAt DateTime  @default(now())
+
+  templateId String
+  template   ReportTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
 }
 
 model ScheduledVisit {

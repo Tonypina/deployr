@@ -124,6 +124,25 @@ router.put("/:id", async (req: AuthRequest, res: Response, next: NextFunction) =
   }
 });
 
+// PATCH /api/clients/:id/template — assign/unassign report template
+router.patch("/:id/template", async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const { templateId } = z.object({ templateId: z.string().nullable() }).parse(req.body);
+    const existing = await prisma.client.findFirst({ where: { id: req.params.id, companyId: req.user!.companyId! } });
+    if (!existing) throw new Error("NOT_FOUND");
+
+    if (templateId) {
+      const template = await prisma.reportTemplate.findFirst({ where: { id: templateId, companyId: req.user!.companyId! } });
+      if (!template) throw new Error("NOT_FOUND");
+    }
+
+    await prisma.client.update({ where: { id: req.params.id }, data: { templateId } });
+    res.json({ success: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // DELETE /api/clients/:id
 router.delete("/:id", async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
