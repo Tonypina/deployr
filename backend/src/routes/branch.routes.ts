@@ -1,25 +1,28 @@
 import { Router, Response, NextFunction } from "express";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
-import { authenticate, requireAdmin } from "../middleware/auth";
+import { authenticate, requireAdminOrClient } from "../middleware/auth";
 import { AuthRequest } from "../types";
+
+import { clean, cleanEmail, cleanOpt, cleanEmailOpt } from "../utils/sanitize";
 
 const router = Router({ mergeParams: true }); // /api/clients/:clientId/branches
 
 const branchSchema = z.object({
-  name: z.string().min(2),
-  address: z.string().min(3),
-  city: z.string().optional(),
-  phone: z.string().optional(),
-  contactName: z.string().optional(),
-  contactEmail: z.string().email().optional(),
+  name:         z.string().min(2).transform(clean),
+  address:      z.string().min(3).transform(clean),
+  city:         z.string().optional().transform(cleanOpt),
+  phone:        z.string().optional().transform(cleanOpt),
+  contactName:  z.string().optional().transform(cleanOpt),
+  contactEmail: z.string().email().optional().transform(cleanEmailOpt),
 });
 
-router.use(authenticate, requireAdmin);
-
 // GET /api/clients/:clientId/branches
-router.get("/", async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.get("/", authenticate, requireAdminOrClient, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
+    
+    if (req.user!.clientId && req.params.clientId !== req.user!.clientId) throw new Error("FORBIDDEN");
+
     const client = await prisma.client.findFirst({
       where: { id: req.params.clientId, companyId: req.user!.companyId! },
     });
@@ -38,8 +41,9 @@ router.get("/", async (req: AuthRequest, res: Response, next: NextFunction) => {
 });
 
 // POST /api/clients/:clientId/branches
-router.post("/", async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.post("/", authenticate, requireAdminOrClient, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
+    if (req.user!.clientId && req.params.clientId !== req.user!.clientId) throw new Error("FORBIDDEN");
     const body = branchSchema.parse(req.body);
     const client = await prisma.client.findFirst({
       where: { id: req.params.clientId, companyId: req.user!.companyId! },
@@ -57,8 +61,9 @@ router.post("/", async (req: AuthRequest, res: Response, next: NextFunction) => 
 });
 
 // GET /api/clients/:clientId/branches/:id
-router.get("/:id", async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.get("/:id", authenticate, requireAdminOrClient, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
+    if (req.user!.clientId && req.params.clientId !== req.user!.clientId) throw new Error("FORBIDDEN");
     const branch = await prisma.branch.findFirst({
       where: { id: req.params.id, clientId: req.params.clientId },
       include: { equipment: { include: { product: true } }, client: { select: { companyId: true } } },
@@ -71,8 +76,9 @@ router.get("/:id", async (req: AuthRequest, res: Response, next: NextFunction) =
 });
 
 // PUT /api/clients/:clientId/branches/:id
-router.put("/:id", async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.put("/:id", authenticate, requireAdminOrClient, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
+    if (req.user!.clientId && req.params.clientId !== req.user!.clientId) throw new Error("FORBIDDEN");
     const body = branchSchema.partial().parse(req.body);
     const branch = await prisma.branch.findFirst({
       where: { id: req.params.id, clientId: req.params.clientId },
@@ -88,8 +94,9 @@ router.put("/:id", async (req: AuthRequest, res: Response, next: NextFunction) =
 });
 
 // DELETE /api/clients/:clientId/branches/:id
-router.delete("/:id", async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.delete("/:id", authenticate, requireAdminOrClient, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
+    if (req.user!.clientId && req.params.clientId !== req.user!.clientId) throw new Error("FORBIDDEN");
     const branch = await prisma.branch.findFirst({
       where: { id: req.params.id, clientId: req.params.clientId },
       include: { client: { select: { companyId: true } } },

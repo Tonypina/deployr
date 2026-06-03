@@ -1,64 +1,157 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { api } from "@/lib/api-client";
-import { Ticket, TicketReport, ReportTemplate, ReportTemplateField } from "@/lib/types";
+import { ReportTemplateField, InventoryItem } from "@/lib/types";
+import { useTicket } from "@/lib/hooks/use-ticket";
+import { checkinTicket, startTicket, finishTicket } from "@/lib/services/tickets";
+import { submitReport as submitReportService, updateReport as updateReportService, getTemplateForTicket } from "@/lib/services/reports";
+import { resizeToBlob, uploadImage } from "@/lib/services/upload";
+import { getInventory } from "@/lib/services/inventory";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn, statusColor, statusLabel, priorityColor, priorityLabel, formatDate } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
-import { ChevronLeft, Play } from "lucide-react";
+import { ImageLightbox } from "@/components/ui/image-lightbox";
+import { ChevronLeft, Play, MapPin, CheckSquare, X, ImagePlus, Plus, Trash2 } from "lucide-react";
 
-type TemplateWithFields = ReportTemplate & { fields: ReportTemplateField[] };
+// ── PhotoField ────────────────────────────────────────────────────────────────
+
+function parseImages(value: string): string[] {
+  if (!value) return [];
+  try {
+    const p = JSON.parse(value);
+    return Array.isArray(p) ? p : [value];
+  } catch {
+    return [value]; // legacy single base64 string
+  }
+}
+
+function PhotoField({
+  value,
+  onChange,
+  onRegisterFile,
+  onUnregisterFile,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  onRegisterFile: (objectUrl: string, file: File) => void;
+  onUnregisterFile: (objectUrl: string) => void;
+}) {
+  const images = parseImages(value);
+
+  function handleFiles(files: File[]) {
+    if (!files.length) return;
+    const newUrls = files.map((file) => {
+      const objectUrl = URL.createObjectURL(file);
+      onRegisterFile(objectUrl, file);
+      return objectUrl;
+    });
+    onChange(JSON.stringify([...images, ...newUrls]));
+  }
+
+  return (
+    <div className="grid gap-2">
+      <label className="inline-flex w-fit cursor-pointer">
+        <input
+          type="file"
+          accept="image/*"
+          multiple
+          className="sr-only"
+          onChange={(e) => {
+            const files = Array.from(e.target.files ?? []);
+            e.target.value = "";
+            handleFiles(files);
+          }}
+        />
+        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-input bg-background text-sm font-medium hover:bg-muted/50 transition-colors">
+          <ImagePlus className="h-3.5 w-3.5" />Agregar imágenes
+        </span>
+      </label>
+
+      {images.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {images.map((src, i) => (
+            <div key={src} className="relative group">
+              <img src={src} alt={`Imagen ${i + 1}`} className="h-20 w-20 rounded-md border border-border object-cover" />
+              <button
+                type="button"
+                onClick={() => {
+                  if (src.startsWith("blob:")) {
+                    onUnregisterFile(src);
+                    URL.revokeObjectURL(src);
+                  }
+                  onChange(JSON.stringify(images.filter((_, j) => j !== i)));
+                }}
+                className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                aria-label={`Quitar imagen ${i + 1}`}
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+interface SparePart { inventoryItemId: string; quantity: number }
 
 export default function TechTicketDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
-  const [ticket, setTicket] = useState<Ticket | null>(null);
-  const [report, setReport] = useState<TicketReport | null>(null);
-  const [template, setTemplate] = useState<TemplateWithFields | null>(null);
+  const { ticket, report, template, loading, setTicket, setTemplate } = useTicket(id);
   const [responses, setResponses] = useState<Record<string, string>>({});
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const [checkingIn, setCheckingIn] = useState(false);
   const [starting, setStarting] = useState(false);
+  const [finishing, setFinishing] = useState(false);
+  const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
+  const pendingFilesRef = useRef<Map<string, File>>(new Map());
+
+  // Spare parts state
+  const [requiresSpareParts, setRequiresSpareParts] = useState(false);
+  const [spareParts, setSpareParts] = useState<SparePart[]>([]);
+  const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([]);
+  const [selectedItemId, setSelectedItemId] = useState("");
+  const [selectedQty, setSelectedQty] = useState(1);
 
   useEffect(() => {
-    async function load() {
-      try {
-        const ticketRes = await api.get<Ticket>(`/api/tickets/${id}`);
-        setTicket(ticketRes.data!);
+    if (ticket?.status === "PENDING_REPORT" || ticket?.status === "REOPENED") {
+      getInventory({ limit: 100 }).then((d) => setInventoryItems(d.items)).catch(() => {});
+    }
+  }, [ticket?.status]);
 
-        try {
-          const reportRes = await api.get<TicketReport>(`/api/tickets/${id}/report`);
-          setReport(reportRes.data!);
-          if (reportRes.data?.template) setTemplate(reportRes.data.template as TemplateWithFields);
-        } catch {
-          // no report yet — fetch template for the form
-          if (ticketRes.data!.status === "IN_PROGRESS") {
-            const tmplRes = await api.get<TemplateWithFields>(`/api/report-templates/for-ticket/${id}`);
-            setTemplate(tmplRes.data!);
-          }
-        }
-      } catch (e) {
-        toast({ variant: "destructive", title: "Error", description: (e as Error).message });
-      } finally {
-        setLoading(false);
+  useEffect(() => {
+    if (ticket?.status === "REOPENED" && report) {
+      setResponses(report.responses);
+      setRequiresSpareParts(report.requiresSpareParts);
+      if (report.spareParts?.length) {
+        setSpareParts(report.spareParts.map((sp) => ({ inventoryItemId: sp.inventoryItemId, quantity: sp.quantity })));
       }
     }
-    load();
-  }, [id]);
+  }, [ticket?.status, report]);
+
+  async function checkinWork() {
+    setCheckingIn(true);
+    try {
+      const updated = await checkinTicket(id);
+      setTicket(updated);
+      toast({ title: "Check-in registrado", description: "El administrador fue notificado de tu llegada" });
+    } catch (e) {
+      toast({ variant: "destructive", title: "Error", description: (e as Error).message });
+    } finally {
+      setCheckingIn(false);
+    }
+  }
 
   async function startWork() {
     setStarting(true);
     try {
-      const res = await api.patch<Ticket>(`/api/tickets/${id}/start`, {});
-      setTicket(res.data!);
-      // Fetch the template now that ticket is IN_PROGRESS
-      const tmplRes = await api.get<TemplateWithFields>(`/api/report-templates/for-ticket/${id}`);
-      setTemplate(tmplRes.data!);
+      const updated = await startTicket(id);
+      setTicket(updated);
       toast({ title: "Trabajo iniciado" });
     } catch (e) {
       toast({ variant: "destructive", title: "Error", description: (e as Error).message });
@@ -67,27 +160,92 @@ export default function TechTicketDetailPage() {
     }
   }
 
-  async function submitReport() {
-    if (!template) return;
-    // Validate required fields
-    for (const field of template.fields) {
-      if (field.required && !responses[field.id]?.trim()) {
-        toast({ variant: "destructive", title: `El campo "${field.label}" es requerido` });
-        return;
-      }
-    }
-    setSaving(true);
+  async function finishWork() {
+    setFinishing(true);
     try {
-      const res = await api.post<TicketReport>(`/api/tickets/${id}/report`, { responses });
-      setReport(res.data!);
-      if (res.data?.template) setTemplate(res.data.template as TemplateWithFields);
-      setTicket((prev) => prev ? { ...prev, status: "COMPLETED" } : prev);
-      toast({ title: "Reporte enviado exitosamente" });
+      const updated = await finishTicket(id);
+      setTicket(updated);
+      const tmpl = await getTemplateForTicket(id);
+      setTemplate(tmpl);
+      toast({ title: "Trabajo finalizado", description: "Completa el reporte para cerrar el ticket" });
     } catch (e) {
       toast({ variant: "destructive", title: "Error", description: (e as Error).message });
     } finally {
-      setSaving(false);
+      setFinishing(false);
     }
+  }
+
+  function addSparePart() {
+    if (!selectedItemId) return;
+    setSpareParts((prev) => {
+      const existing = prev.find((p) => p.inventoryItemId === selectedItemId);
+      if (existing) return prev.map((p) => p.inventoryItemId === selectedItemId ? { ...p, quantity: p.quantity + selectedQty } : p);
+      return [...prev, { inventoryItemId: selectedItemId, quantity: selectedQty }];
+    });
+    setSelectedItemId("");
+    setSelectedQty(1);
+  }
+
+  function submitReport() {
+    if (!template || !ticket) return;
+    // Validate required fields
+    for (const field of template.fields) {
+      if (field.required) {
+        const val = responses[field.id] ?? "";
+        const empty = field.type === "PHOTO" ? !parseImages(val).length : !val.trim();
+        if (empty) {
+          toast({ variant: "destructive", title: `El campo "${field.label}" es requerido` });
+          return;
+        }
+      }
+    }
+    if (requiresSpareParts && spareParts.length === 0) {
+      toast({ variant: "destructive", title: "Agrega al menos un repuesto requerido" });
+      return;
+    }
+
+    const isReopened = ticket.status === "REOPENED";
+    toast({ title: "Enviando reporte…", description: "Puedes continuar mientras se procesa." });
+    router.back();
+
+    // Fire-and-forget: upload any local images then submit/update the report
+    const snapshot = { ...responses };
+    const filesMap = pendingFilesRef.current;
+    void (async () => {
+      try {
+        const finalResponses = { ...snapshot };
+        await Promise.all(
+          Object.entries(finalResponses).map(async ([fieldId, value]) => {
+            const images = parseImages(value);
+            if (!images.some((img) => img.startsWith("blob:"))) return;
+            const uploaded = await Promise.all(
+              images.map(async (img) => {
+                if (!img.startsWith("blob:")) return img;
+                const file = filesMap.get(img)!;
+                const resized = await resizeToBlob(file);
+                return uploadImage(resized, file.name.replace(/\.[^.]+$/, ".jpg"));
+              })
+            );
+            finalResponses[fieldId] = JSON.stringify(uploaded);
+          })
+        );
+        if (isReopened) {
+          await updateReportService(id, finalResponses, {
+            requiresSpareParts,
+            spareParts: requiresSpareParts ? spareParts : [],
+          });
+          toast({ title: "Reporte actualizado exitosamente" });
+        } else {
+          await submitReportService(id, finalResponses, {
+            requiresSpareParts,
+            spareParts: requiresSpareParts ? spareParts : [],
+          });
+          toast({ title: "Reporte enviado exitosamente" });
+        }
+      } catch (e) {
+        toast({ variant: "destructive", title: "Error al enviar reporte", description: (e as Error).message });
+      }
+    })();
   }
 
   function renderField(field: ReportTemplateField, value: string, onChange: (v: string) => void) {
@@ -112,55 +270,59 @@ export default function TechTicketDetailPage() {
     }
     if (field.type === "PHOTO") {
       return (
-        <div className="grid gap-2">
-          <input
-            type="file"
-            accept="image/*"
-            className="text-sm file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border file:border-input file:bg-background file:text-sm file:font-medium cursor-pointer"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (!file) return;
-              const canvas = document.createElement("canvas");
-              const img = new Image();
-              const url = URL.createObjectURL(file);
-              img.onload = () => {
-                const MAX = 1200;
-                const ratio = Math.min(MAX / img.width, MAX / img.height, 1);
-                canvas.width = Math.round(img.width * ratio);
-                canvas.height = Math.round(img.height * ratio);
-                canvas.getContext("2d")!.drawImage(img, 0, 0, canvas.width, canvas.height);
-                onChange(canvas.toDataURL("image/jpeg", 0.8));
-                URL.revokeObjectURL(url);
-              };
-              img.src = url;
-            }}
-          />
-          {value && (
-            <img src={value} alt="preview" className="max-h-48 rounded-md border border-border object-contain" />
-          )}
-        </div>
+        <PhotoField
+          value={value}
+          onChange={onChange}
+          onRegisterFile={(url, file) => pendingFilesRef.current.set(url, file)}
+          onUnregisterFile={(url) => pendingFilesRef.current.delete(url)}
+        />
       );
     }
     if (field.type === "MULTISELECT") {
       const selected: string[] = value ? JSON.parse(value) : [];
+      const remaining = (field.options ?? []).filter((opt) => !selected.includes(opt));
       return (
         <div className="grid gap-2">
-          {(field.options ?? []).map((opt) => (
-            <label key={opt} className="flex items-center gap-2 text-sm cursor-pointer">
-              <input
-                type="checkbox"
-                className="h-4 w-4 rounded"
-                checked={selected.includes(opt)}
-                onChange={(e) => {
-                  const next = e.target.checked
-                    ? [...selected, opt]
-                    : selected.filter((s) => s !== opt);
-                  onChange(JSON.stringify(next));
-                }}
-              />
-              {opt}
-            </label>
-          ))}
+          {remaining.length > 0 && (
+            <select
+              className={cn(baseClass, "cursor-pointer")}
+              value=""
+              onChange={(e) => {
+                if (!e.target.value) return;
+                onChange(JSON.stringify([...selected, e.target.value]));
+                // reset to placeholder after selection
+                e.currentTarget.value = "";
+              }}
+            >
+              <option value="" disabled>Seleccionar opción…</option>
+              {remaining.map((opt) => (
+                <option key={opt} value={opt}>{opt}</option>
+              ))}
+            </select>
+          )}
+          {selected.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {selected.map((opt) => (
+                <span
+                  key={opt}
+                  className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium bg-blue-100 text-blue-800"
+                >
+                  {opt}
+                  <button
+                    type="button"
+                    onClick={() => onChange(JSON.stringify(selected.filter((s) => s !== opt)))}
+                    className="hover:text-blue-900 transition-colors"
+                    aria-label={`Quitar ${opt}`}
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+          {remaining.length === 0 && selected.length === 0 && (
+            <p className="text-xs text-muted-foreground">Sin opciones disponibles</p>
+          )}
         </div>
       );
     }
@@ -171,6 +333,7 @@ export default function TechTicketDetailPage() {
   if (!ticket) return <p className="text-sm text-destructive p-6">Ticket no encontrado</p>;
 
   return (
+    <>
     <div className="page-stack max-w-2xl">
       <div className="flex items-center gap-2">
         <Button variant="ghost" size="icon" onClick={() => router.back()}>
@@ -198,19 +361,33 @@ export default function TechTicketDetailPage() {
           </div>
 
           {ticket.status === "ASSIGNED" && (
+            <Button onClick={checkinWork} disabled={checkingIn} className="w-full">
+              <MapPin className="h-4 w-4 mr-2" />
+              {checkingIn ? "Registrando..." : "Registrar llegada"}
+            </Button>
+          )}
+          {ticket.status === "ON_SITE" && (
             <Button onClick={startWork} disabled={starting} className="w-full">
               <Play className="h-4 w-4 mr-2" />
               {starting ? "Iniciando..." : "Iniciar trabajo"}
             </Button>
           )}
+          {ticket.status === "IN_PROGRESS" && (
+            <Button onClick={finishWork} disabled={finishing} className="w-full">
+              <CheckSquare className="h-4 w-4 mr-2" />
+              {finishing ? "Finalizando..." : "Finalizar trabajo"}
+            </Button>
+          )}
         </CardContent>
       </Card>
 
-      {/* Dynamic report form — only when IN_PROGRESS */}
-      {ticket.status === "IN_PROGRESS" && !report && template && (
+      {/* Dynamic report form — when PENDING_REPORT (new) or REOPENED (edit existing) */}
+      {((ticket.status === "PENDING_REPORT" && !report) || ticket.status === "REOPENED") && template && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Completar reporte</CardTitle>
+            <CardTitle className="text-base">
+              {ticket.status === "REOPENED" ? "Corregir reporte" : "Completar reporte"}
+            </CardTitle>
             <p className="text-xs text-muted-foreground">{template.name}</p>
           </CardHeader>
           <CardContent className="grid gap-4">
@@ -225,15 +402,78 @@ export default function TechTicketDetailPage() {
                 )}
               </div>
             ))}
-            <Button onClick={submitReport} disabled={saving} className="mt-2">
-              {saving ? "Enviando..." : "Enviar reporte y completar ticket"}
+
+            {/* Spare parts */}
+            <div className="border-t pt-4 grid gap-3">
+              <div className="flex items-center gap-3">
+                <input
+                  type="checkbox"
+                  id="requires-spare-parts"
+                  checked={requiresSpareParts}
+                  onChange={(e) => { setRequiresSpareParts(e.target.checked); if (!e.target.checked) setSpareParts([]); }}
+                  className="h-4 w-4 rounded border-input"
+                />
+                <Label htmlFor="requires-spare-parts" className="cursor-pointer">
+                  ¿El servicio requiere repuestos? <span className="text-destructive">*</span>
+                </Label>
+              </div>
+
+              {requiresSpareParts && (
+                <div className="grid gap-3 pl-7">
+                  <div className="flex gap-2 items-end">
+                    <div className="flex-1 grid gap-1.5">
+                      <Label className="text-xs">Repuesto</Label>
+                      <select
+                        value={selectedItemId}
+                        onChange={(e) => setSelectedItemId(e.target.value)}
+                        className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
+                      >
+                        <option value="">Seleccionar item...</option>
+                        {inventoryItems.map((item) => (
+                          <option key={item.id} value={item.id}>{item.name}{item.sku ? ` (${item.sku})` : ""}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="w-24 grid gap-1.5">
+                      <Label className="text-xs">Cantidad</Label>
+                      <Input type="number" min={1} value={selectedQty} onChange={(e) => setSelectedQty(Number(e.target.value))} />
+                    </div>
+                    <Button type="button" size="icon" variant="outline" onClick={addSparePart} disabled={!selectedItemId}>
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                  </div>
+
+                  {spareParts.length > 0 && (
+                    <div className="grid gap-1.5">
+                      {spareParts.map((sp) => {
+                        const item = inventoryItems.find((i) => i.id === sp.inventoryItemId);
+                        return (
+                          <div key={sp.inventoryItemId} className="flex items-center justify-between rounded-md border px-3 py-2 text-sm">
+                            <span>{item?.name ?? sp.inventoryItemId}</span>
+                            <div className="flex items-center gap-2">
+                              <span className="text-muted-foreground">{sp.quantity} {item?.unit ?? "uds"}</span>
+                              <button type="button" onClick={() => setSpareParts((p) => p.filter((x) => x.inventoryItemId !== sp.inventoryItemId))}>
+                                <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <Button onClick={submitReport} className="mt-2">
+              {ticket.status === "REOPENED" ? "Actualizar reporte y completar" : "Enviar reporte y completar ticket"}
             </Button>
           </CardContent>
         </Card>
       )}
 
-      {/* Read-only submitted report */}
-      {report && template && (
+      {/* Read-only submitted report — hidden when REOPENED since the editable form is shown instead */}
+      {report && template && ticket.status !== "REOPENED" && (
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Reporte enviado</CardTitle>
@@ -247,11 +487,21 @@ export default function TechTicketDetailPage() {
                 <div key={field.id}>
                   <p className="font-medium text-muted-foreground mb-1">{field.label}</p>
                   {field.type === "PHOTO" ? (
-                    <img src={value} alt={field.label} className="max-h-48 rounded-md border border-border object-contain" />
+                    <div className="flex flex-wrap gap-2">
+                      {parseImages(value).map((src, i) => (
+                        <button key={i} type="button" onClick={() => setLightboxSrc(src)} className="shrink-0">
+                          <img src={src} alt={`${field.label} ${i + 1}`} className="h-20 w-20 rounded-md border border-border object-cover hover:opacity-80 transition-opacity cursor-zoom-in" />
+                        </button>
+                      ))}
+                    </div>
                   ) : field.type === "MULTISELECT" ? (
-                    <ul className="list-disc list-inside space-y-0.5">
-                      {(JSON.parse(value) as string[]).map((v) => <li key={v}>{v}</li>)}
-                    </ul>
+                    <div className="flex flex-wrap gap-1.5">
+                      {(JSON.parse(value) as string[]).map((v) => (
+                        <span key={v} className="text-xs px-2 py-0.5 rounded-full font-medium bg-blue-100 text-blue-800">
+                          {v}
+                        </span>
+                      ))}
+                    </div>
                   ) : field.type === "DATE" ? (
                     <p>{formatDate(value)}</p>
                   ) : (
@@ -265,5 +515,8 @@ export default function TechTicketDetailPage() {
         </Card>
       )}
     </div>
+
+    {lightboxSrc && <ImageLightbox src={lightboxSrc} onClose={() => setLightboxSrc(null)} />}
+    </>
   );
 }

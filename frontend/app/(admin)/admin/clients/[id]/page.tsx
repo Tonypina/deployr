@@ -2,15 +2,22 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { useForm } from "react-hook-form";
+import { useForm, Controller } from "react-hook-form";
+import { AddressAutocomplete } from "@/components/ui/address-autocomplete";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import {
   ChevronLeft, ChevronDown, ChevronRight,
-  Plus, Pencil, Trash2, Building2, Cpu, FileText,
+  Plus, Pencil, Trash2, Building2, Cpu, FileText, Users, KeyRound,
 } from "lucide-react";
-import { api } from "@/lib/api-client";
-import { Client, Branch, Equipment, ReportTemplate } from "@/lib/types";
+import { Equipment, ReportTemplate } from "@/lib/types";
+import { useClient, ClientDetail, BranchWithEquipment } from "@/lib/hooks/use-client";
+import {
+  updateClient, deleteClient as deleteClientService, assignClientTemplate,
+  createBranch, updateBranch, deleteBranch as deleteBranchService,
+  createEquipment, updateEquipment, deleteEquipment as deleteEquipmentService,
+  createPortalUser, resetPortalUserPassword,
+} from "@/lib/services/clients";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,11 +25,19 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn, formatDate } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
 
-// ── Extended types ──────────────────────────────────────────────────────────
-type BranchWithEquipment = Branch & { equipment: Equipment[] };
-type ClientDetail = Client & { branches: BranchWithEquipment[] };
-
 // ── Zod schemas ─────────────────────────────────────────────────────────────
+
+const portalUserSchema = z.object({
+  name: z.string().min(2, "Mínimo 2 caracteres"),
+  email: z.string().email("Email inválido"),
+  password: z.string().min(8, "Mínimo 8 caracteres"),
+  phone: z.string().optional(),
+});
+
+const resetPasswordSchema = z.object({
+  password: z.string().min(8, "Mínimo 8 caracteres"),
+});
+
 const clientSchema = z.object({
   name: z.string().min(2, "Mínimo 2 caracteres"),
   contactEmail: z.string().email("Email inválido"),
@@ -50,11 +65,122 @@ const equipmentSchema = z.object({
   notes: z.string().optional(),
 });
 
+type PortalUserForm = z.infer<typeof portalUserSchema>;
+type ResetPasswordForm = z.infer<typeof resetPasswordSchema>;
 type ClientForm = z.infer<typeof clientSchema>;
 type BranchForm = z.infer<typeof branchSchema>;
 type EquipmentForm = z.infer<typeof equipmentSchema>;
 
 // ── Sub-components ───────────────────────────────────────────────────────────
+
+function AddPortalUserForm({
+  clientId,
+  onSave,
+  onCancel,
+}: {
+  clientId: string;
+  onSave: () => void;
+  onCancel: () => void;
+}) {
+  const [saving, setSaving] = useState(false);
+  const { register, handleSubmit, reset, formState: { errors } } = useForm<PortalUserForm>({
+    resolver: zodResolver(portalUserSchema),
+  });
+
+  async function onSubmit(data: PortalUserForm) {
+    setSaving(true);
+    try {
+      await createPortalUser(clientId, data);
+      toast({ title: "Usuario creado", description: "Deberá cambiar su contraseña al primer ingreso." });
+      reset();
+      onSave();
+    } catch (e) {
+      toast({ variant: "destructive", title: "Error", description: (e as Error).message });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit(onSubmit)} noValidate>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-1.5">
+          <Label>Nombre *</Label>
+          <Input placeholder="Juan Pérez" className={cn(errors.name && "border-destructive")} {...register("name")} />
+          {errors.name && <p className="text-xs text-destructive">{errors.name.message}</p>}
+        </div>
+        <div className="grid gap-1.5">
+          <Label>Email *</Label>
+          <Input type="email" placeholder="usuario@cliente.com" className={cn(errors.email && "border-destructive")} {...register("email")} />
+          {errors.email && <p className="text-xs text-destructive">{errors.email.message}</p>}
+        </div>
+        <div className="grid gap-1.5">
+          <Label>Contraseña temporal *</Label>
+          <Input type="password" placeholder="Mínimo 8 caracteres" className={cn(errors.password && "border-destructive")} {...register("password")} />
+          {errors.password && <p className="text-xs text-destructive">{errors.password.message}</p>}
+        </div>
+        <div className="grid gap-1.5">
+          <Label>Teléfono</Label>
+          <Input placeholder="+52 55 0000 0000" {...register("phone")} />
+        </div>
+        <div className="sm:col-span-2 flex gap-2 justify-end">
+          <Button type="button" variant="outline" size="sm" onClick={onCancel}>Cancelar</Button>
+          <Button type="submit" size="sm" disabled={saving}>{saving ? "Guardando..." : "Crear usuario"}</Button>
+        </div>
+      </div>
+    </form>
+  );
+}
+
+function PortalUserResetForm({
+  clientId,
+  userId,
+  onDone,
+}: {
+  clientId: string;
+  userId: string;
+  onDone: () => void;
+}) {
+  const [saving, setSaving] = useState(false);
+  const { register, handleSubmit, reset, formState: { errors } } = useForm<ResetPasswordForm>({
+    resolver: zodResolver(resetPasswordSchema),
+  });
+
+  async function onSubmit(data: ResetPasswordForm) {
+    setSaving(true);
+    try {
+      await resetPortalUserPassword(clientId, userId, data.password);
+      toast({ title: "Contraseña actualizada", description: "El usuario deberá cambiarla en su próximo ingreso." });
+      reset();
+      onDone();
+    } catch (e) {
+      toast({ variant: "destructive", title: "Error", description: (e as Error).message });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit(onSubmit)} className="flex items-end gap-2 pt-3 border-t border-border mt-3">
+      <div className="flex-1 grid gap-1.5">
+        <Label className="text-xs">Nueva contraseña temporal</Label>
+        <Input
+          type="password"
+          placeholder="Mínimo 8 caracteres"
+          {...register("password")}
+          className={cn("h-8 text-sm", errors.password && "border-destructive")}
+        />
+        {errors.password && <p className="text-xs text-destructive">{errors.password.message}</p>}
+      </div>
+      <Button type="submit" size="sm" disabled={saving} className="h-8">
+        {saving ? "Guardando..." : "Guardar"}
+      </Button>
+      <Button type="button" variant="outline" size="sm" onClick={onDone} className="h-8">
+        Cancelar
+      </Button>
+    </form>
+  );
+}
 
 function InlineClientForm({
   client,
@@ -66,7 +192,7 @@ function InlineClientForm({
   onCancel: () => void;
 }) {
   const [saving, setSaving] = useState(false);
-  const { register, handleSubmit, formState: { errors } } = useForm<ClientForm>({
+  const { register, control, handleSubmit, formState: { errors } } = useForm<ClientForm>({
     resolver: zodResolver(clientSchema),
     defaultValues: {
       name: client.name,
@@ -100,7 +226,17 @@ function InlineClientForm({
         </div>
         <div className="sm:col-span-2 grid gap-2">
           <Label>Dirección</Label>
-          <Input {...register("address")} />
+          <Controller
+            name="address"
+            control={control}
+            render={({ field }) => (
+              <AddressAutocomplete
+                value={field.value ?? ""}
+                onChange={field.onChange}
+                onBlur={field.onBlur}
+              />
+            )}
+          />
         </div>
         <div className="sm:col-span-2 flex gap-2 justify-end">
           <Button type="button" variant="outline" size="sm" onClick={onCancel}>Cancelar</Button>
@@ -121,7 +257,7 @@ function BranchForm({
   onCancel: () => void;
 }) {
   const [saving, setSaving] = useState(false);
-  const { register, handleSubmit, formState: { errors } } = useForm<BranchForm>({
+  const { register, control, handleSubmit, formState: { errors } } = useForm<BranchForm>({
     resolver: zodResolver(branchSchema),
     defaultValues: {
       name: initial?.name ?? "",
@@ -148,7 +284,19 @@ function BranchForm({
         </div>
         <div className="sm:col-span-2 grid gap-1.5">
           <Label>Dirección *</Label>
-          <Input placeholder="Av. Principal 123" className={cn(errors.address && "border-destructive")} {...register("address")} />
+          <Controller
+            name="address"
+            control={control}
+            render={({ field }) => (
+              <AddressAutocomplete
+                value={field.value ?? ""}
+                onChange={field.onChange}
+                onBlur={field.onBlur}
+                placeholder="Av. Principal 123"
+                className={cn(errors.address && "border-destructive")}
+              />
+            )}
+          />
           {errors.address && <p className="text-xs text-destructive">{errors.address.message}</p>}
         </div>
         <div className="grid gap-1.5">
@@ -242,9 +390,7 @@ export default function ClientDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
 
-  const [client, setClient] = useState<ClientDetail | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [templates, setTemplates] = useState<ReportTemplate[]>([]);
+  const { client, templates, loading, refetch } = useClient(id);
   const [assigningTemplate, setAssigningTemplate] = useState(false);
 
   const [editingClient, setEditingClient] = useState(false);
@@ -253,25 +399,12 @@ export default function ClientDetailPage() {
   const [expandedBranches, setExpandedBranches] = useState<Set<string>>(new Set());
   const [addEquipmentBranchId, setAddEquipmentBranchId] = useState<string | null>(null);
   const [editingEquipment, setEditingEquipment] = useState<{ branchId: string; equipment: Equipment } | null>(null);
+  const [showAddPortalUser, setShowAddPortalUser] = useState(false);
+  const [resetingUserId, setResetingUserId] = useState<string | null>(null);
 
-  async function load() {
-    try {
-      const [clientRes, tmplRes] = await Promise.all([
-        api.get<ClientDetail>(`/api/clients/${id}`),
-        api.get<ReportTemplate[]>("/api/report-templates"),
-      ]);
-      setClient(clientRes.data!);
-      setTemplates(tmplRes.data ?? []);
-      setExpandedBranches(new Set(clientRes.data!.branches.map((b) => b.id)));
-    } catch {
-      toast({ variant: "destructive", title: "No se pudo cargar el cliente" });
-      router.replace("/admin/clients");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  useEffect(() => { load(); }, [id]);
+  useEffect(() => {
+    if (client) setExpandedBranches(new Set(client.branches.map((b) => b.id)));
+  }, [client]);
 
   function toggleBranch(branchId: string) {
     setExpandedBranches((prev) => {
@@ -283,10 +416,10 @@ export default function ClientDetailPage() {
 
   // ── Client mutations ──────────────────────────────────────────────────────
 
-  async function deleteClient() {
+  async function handleDeleteClient() {
     if (!confirm(`¿Eliminar a "${client!.name}"? Esta acción eliminará todas sus sucursales, equipos y tickets.`)) return;
     try {
-      await api.del(`/api/clients/${id}`);
+      await deleteClientService(id);
       toast({ title: "Cliente eliminado" });
       router.replace("/admin/clients");
     } catch (e) {
@@ -295,18 +428,18 @@ export default function ClientDetailPage() {
   }
 
   async function saveClient(data: ClientForm) {
-    await api.put(`/api/clients/${id}`, data);
+    await updateClient(id, data);
     toast({ title: "Cliente actualizado" });
     setEditingClient(false);
-    load();
+    refetch();
   }
 
   async function assignTemplate(templateId: string | null) {
     try {
-      await api.patch(`/api/clients/${id}/template`, { templateId });
+      await assignClientTemplate(id, templateId);
       toast({ title: templateId ? "Plantilla asignada" : "Plantilla removida" });
       setAssigningTemplate(false);
-      load();
+      refetch();
     } catch (e) {
       toast({ variant: "destructive", title: "Error", description: (e as Error).message });
     }
@@ -315,25 +448,25 @@ export default function ClientDetailPage() {
   // ── Branch mutations ──────────────────────────────────────────────────────
 
   async function addBranch(data: BranchForm) {
-    await api.post(`/api/clients/${id}/branches`, data);
+    await createBranch(id, data);
     toast({ title: "Sucursal agregada" });
     setShowAddBranch(false);
-    load();
+    refetch();
   }
 
   async function editBranch(branchId: string, data: BranchForm) {
-    await api.put(`/api/clients/${id}/branches/${branchId}`, data);
+    await updateBranch(id, branchId, data);
     toast({ title: "Sucursal actualizada" });
     setEditingBranchId(null);
-    load();
+    refetch();
   }
 
-  async function deleteBranch(branchId: string) {
+  async function handleDeleteBranch(branchId: string) {
     if (!confirm("¿Eliminar esta sucursal y todo su equipamiento?")) return;
     try {
-      await api.del(`/api/clients/${id}/branches/${branchId}`);
+      await deleteBranchService(id, branchId);
       toast({ title: "Sucursal eliminada" });
-      load();
+      refetch();
     } catch (e) {
       toast({ variant: "destructive", title: "Error", description: (e as Error).message });
     }
@@ -342,7 +475,7 @@ export default function ClientDetailPage() {
   // ── Equipment mutations ───────────────────────────────────────────────────
 
   async function addEquipment(branchId: string, data: EquipmentForm) {
-    await api.post(`/api/clients/${id}/branches/${branchId}/equipment`, {
+    await createEquipment(id, branchId, {
       name: data.name,
       brand: data.brand || undefined,
       model: data.model || undefined,
@@ -351,11 +484,11 @@ export default function ClientDetailPage() {
     });
     toast({ title: "Equipo agregado" });
     setAddEquipmentBranchId(null);
-    load();
+    refetch();
   }
 
   async function saveEquipment(branchId: string, equipmentId: string, data: EquipmentForm) {
-    await api.put(`/api/clients/${id}/branches/${branchId}/equipment/${equipmentId}`, {
+    await updateEquipment(id, branchId, equipmentId, {
       name: data.name,
       brand: data.brand || undefined,
       model: data.model || undefined,
@@ -364,15 +497,15 @@ export default function ClientDetailPage() {
     });
     toast({ title: "Equipo actualizado" });
     setEditingEquipment(null);
-    load();
+    refetch();
   }
 
-  async function deleteEquipment(branchId: string, equipmentId: string) {
+  async function handleDeleteEquipment(branchId: string, equipmentId: string) {
     if (!confirm("¿Eliminar este equipo?")) return;
     try {
-      await api.del(`/api/clients/${id}/branches/${branchId}/equipment/${equipmentId}`);
+      await deleteEquipmentService(id, branchId, equipmentId);
       toast({ title: "Equipo eliminado" });
-      load();
+      refetch();
     } catch (e) {
       toast({ variant: "destructive", title: "Error", description: (e as Error).message });
     }
@@ -400,7 +533,7 @@ export default function ClientDetailPage() {
               variant="outline"
               size="sm"
               className="text-destructive hover:text-destructive hover:border-destructive/60"
-              onClick={deleteClient}
+              onClick={handleDeleteClient}
             >
               <Trash2 className="h-3.5 w-3.5 mr-1.5" />Eliminar
             </Button>
@@ -477,7 +610,7 @@ export default function ClientDetailPage() {
                   <span className="font-medium">Predeterminada del sistema</span>
                   <p className="text-xs text-muted-foreground">Usa la plantilla marcada como predeterminada</p>
                 </button>
-                {templates.filter((t) => !t.isDefault).map((t) => (
+                {(templates as ReportTemplate[]).filter((t) => !t.isDefault).map((t) => (
                   <button
                     key={t.id}
                     onClick={() => assignTemplate(t.id)}
@@ -495,10 +628,81 @@ export default function ClientDetailPage() {
           ) : (
             <p className="text-sm">
               {client.templateId
-                ? <span className="font-medium">{templates.find((t) => t.id === client.templateId)?.name ?? "Plantilla personalizada"}</span>
+                ? <span className="font-medium">{(templates as ReportTemplate[]).find((t) => t.id === client.templateId)?.name ?? "Plantilla personalizada"}</span>
                 : <span className="text-muted-foreground">Predeterminada del sistema</span>
               }
             </p>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Portal users section */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Users className="h-4 w-4 text-muted-foreground" />
+              Usuarios del portal
+            </CardTitle>
+            <Button variant="ghost" size="sm" onClick={() => setShowAddPortalUser(!showAddPortalUser)}>
+              {showAddPortalUser ? "Cancelar" : <><Plus className="h-3.5 w-3.5 mr-1" />Agregar</>}
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {showAddPortalUser && (
+            <div className="pb-3 border-b border-border">
+              <AddPortalUserForm
+                clientId={id}
+                onSave={() => { setShowAddPortalUser(false); refetch(); }}
+                onCancel={() => setShowAddPortalUser(false)}
+              />
+            </div>
+          )}
+          {!client.users?.length && !showAddPortalUser ? (
+            <p className="text-sm text-muted-foreground">Sin usuarios registrados. Agrega uno para que el cliente acceda al portal.</p>
+          ) : (
+            <div className="grid gap-2">
+              {client.users?.map((u) => (
+                <div key={u.id}>
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="text-sm font-medium">{u.name}</p>
+                        <span className={cn(
+                          "text-xs px-2 py-0.5 rounded-full font-medium",
+                          u.isActive ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600"
+                        )}>
+                          {u.isActive ? "Activo" : "Inactivo"}
+                        </span>
+                        {u.mustChangePassword && (
+                          <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-amber-100 text-amber-700">
+                            Debe cambiar contraseña
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground">{u.email}</p>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 shrink-0"
+                      onClick={() => setResetingUserId(resetingUserId === u.id ? null : u.id)}
+                      title="Cambiar contraseña"
+                    >
+                      <KeyRound className="h-3.5 w-3.5 text-muted-foreground" />
+                    </Button>
+                  </div>
+                  {resetingUserId === u.id && (
+                    <PortalUserResetForm
+                      clientId={id}
+                      userId={u.id}
+                      onDone={() => setResetingUserId(null)}
+                    />
+                  )}
+                </div>
+              ))}
+            </div>
           )}
         </CardContent>
       </Card>
@@ -585,7 +789,7 @@ export default function ClientDetailPage() {
                         variant="ghost"
                         size="icon"
                         className="h-7 w-7 text-destructive hover:text-destructive"
-                        onClick={() => deleteBranch(branch.id)}
+                        onClick={() => handleDeleteBranch(branch.id)}
                         title="Eliminar sucursal"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
@@ -699,7 +903,7 @@ export default function ClientDetailPage() {
                                         variant="ghost"
                                         size="icon"
                                         className="h-7 w-7 text-destructive hover:text-destructive"
-                                        onClick={() => deleteEquipment(branch.id, eq.id)}
+                                        onClick={() => handleDeleteEquipment(branch.id, eq.id)}
                                         title="Eliminar"
                                       >
                                         <Trash2 className="h-3.5 w-3.5" />

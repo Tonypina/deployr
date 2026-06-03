@@ -5,24 +5,32 @@ import { authenticate, requireAdmin, requireAdminOrTech } from "../middleware/au
 import { AuthRequest, paginate } from "../types";
 import { Role } from "@prisma/client";
 import { expireOverdueTickets } from "../utils/expire-tickets";
+import { sendApprovalRequestEmail } from "../utils/email";
+import { clean, cleanOpt } from "../utils/sanitize";
 
 const router = Router();
 
+function recordStatus(ticketId: string, status: string, userId?: string) {
+  (prisma.ticketStatusHistory as any)
+    .create({ data: { ticketId, status, changedBy: userId ?? null } })
+    .catch(() => {});
+}
+
 const createSchema = z.object({
-  title: z.string().min(3),
-  description: z.string().optional(),
-  priority: z.enum(["LOW", "MEDIUM", "HIGH", "URGENT"]).default("MEDIUM"),
-  clientId: z.string().optional(),
-  branchId: z.string().optional(),
-  equipmentId: z.string().optional(),
+  title:        z.string().min(3).transform(clean),
+  description:  z.string().optional().transform(cleanOpt),
+  priority:     z.enum(["LOW", "MEDIUM", "HIGH", "URGENT"]).default("MEDIUM"),
+  clientId:     z.string().optional(),
+  branchId:     z.string().optional(),
+  equipmentId:  z.string().optional(),
   technicianId: z.string().optional(),
-  scheduledAt: z.string().datetime().optional(),
+  scheduledAt:  z.string().datetime().optional(),
 });
 
 const editSchema = z.object({
-  title: z.string().min(3).optional(),
-  description: z.string().optional(),
-  priority: z.enum(["LOW", "MEDIUM", "HIGH", "URGENT"]).optional(),
+  title:       z.string().min(3).optional().transform(cleanOpt),
+  description: z.string().optional().transform(cleanOpt),
+  priority:    z.enum(["LOW", "MEDIUM", "HIGH", "URGENT"]).optional(),
   scheduledAt: z.string().datetime().nullable().optional(),
 });
 
@@ -39,13 +47,38 @@ router.get("/", async (req: AuthRequest, res: Response, next: NextFunction) => {
   expireOverdueTickets().catch(() => {});
 
   try {
-    const { status, priority, page = "1", limit = "20" } = req.query as Record<string, string>;
+    const {
+      status, priority, year, page = "1", limit = "20",
+      search,
+      clientId: clientFilter,
+      technicianId: technicianFilter,
+      branchId,
+      equipmentId,
+      orderBy = "createdAt",
+    } = req.query as Record<string, string>;
     const { take, skip } = paginate(Number(page), Number(limit));
     const { role, userId, companyId, clientId } = req.user!;
 
+    const statuses = status ? status.split(",").filter(Boolean) : [];
+
+    const yearFilter = year
+      ? {
+          createdAt: {
+            gte: new Date(`${year}-01-01T00:00:00.000Z`),
+            lt: new Date(`${Number(year) + 1}-01-01T00:00:00.000Z`),
+          },
+        }
+      : {};
+
     const where: Record<string, unknown> = {
-      ...(status ? { status } : {}),
+      ...(statuses.length > 0 ? { status: { in: statuses } } : {}),
       ...(priority ? { priority } : {}),
+      ...(search ? { title: { contains: search, mode: "insensitive" } } : {}),
+      ...(clientFilter ? { clientId: clientFilter } : {}),
+      ...(technicianFilter ? { technicianId: technicianFilter } : {}),
+      ...(branchId ? { branchId } : {}),
+      ...(equipmentId ? { equipmentId } : {}),
+      ...yearFilter,
     };
 
     if (role === Role.ADMIN) where.companyId = companyId;
@@ -62,7 +95,7 @@ router.get("/", async (req: AuthRequest, res: Response, next: NextFunction) => {
           technician: { select: { id: true, name: true } },
           report: { select: { id: true } },
         },
-        orderBy: { createdAt: "desc" },
+        orderBy: { [orderBy === "updatedAt" ? "updatedAt" : "createdAt"]: "desc" },
         take,
         skip,
       }),
@@ -89,6 +122,7 @@ router.get("/:id", async (req: AuthRequest, res: Response, next: NextFunction) =
         technician: { select: { id: true, name: true, email: true, phone: true } },
         report: true,
         company: { select: { id: true, name: true } },
+        statusHistory: { orderBy: { changedAt: "asc" } },
       },
     });
 
@@ -148,6 +182,7 @@ router.post("/", async (req: AuthRequest, res: Response, next: NextFunction) => 
       },
     });
 
+    recordStatus(ticket.id, initialStatus, req.user!.userId);
     res.status(201).json({ success: true, data: ticket });
   } catch (err) {
     next(err);
@@ -197,14 +232,15 @@ router.patch("/:id/assign", requireAdmin, async (req: AuthRequest, res: Response
       include: { technician: { select: { id: true, name: true } } },
     });
 
+    recordStatus(req.params.id, "ASSIGNED", req.user!.userId);
     res.json({ success: true, data: updated });
   } catch (err) {
     next(err);
   }
 });
 
-// PATCH /api/tickets/:id/start — technician starts work (ASSIGNED → IN_PROGRESS)
-router.patch("/:id/start", async (req: AuthRequest, res: Response, next: NextFunction) => {
+// PATCH /api/tickets/:id/checkin — technician checks in at branch (ASSIGNED → ON_SITE)
+router.patch("/:id/checkin", async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const { role, userId } = req.user!;
     if (role !== Role.TECHNICIAN) throw new Error("FORBIDDEN");
@@ -213,7 +249,33 @@ router.patch("/:id/start", async (req: AuthRequest, res: Response, next: NextFun
     if (!ticket) throw new Error("NOT_FOUND");
     if (ticket.technicianId !== userId) throw new Error("FORBIDDEN");
     if (ticket.status !== "ASSIGNED") {
-      res.status(422).json({ success: false, message: "Solo se pueden iniciar tickets en estado Asignado" });
+      res.status(422).json({ success: false, message: "Solo se puede hacer check-in en tickets en estado Asignado" });
+      return;
+    }
+
+    const updated = await prisma.ticket.update({
+      where: { id: req.params.id },
+      data: { status: "ON_SITE" },
+    });
+
+    recordStatus(req.params.id, "ON_SITE", userId);
+    res.json({ success: true, data: updated });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// PATCH /api/tickets/:id/start — technician starts work (ON_SITE → IN_PROGRESS)
+router.patch("/:id/start", async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const { role, userId } = req.user!;
+    if (role !== Role.TECHNICIAN) throw new Error("FORBIDDEN");
+
+    const ticket = await prisma.ticket.findUnique({ where: { id: req.params.id } });
+    if (!ticket) throw new Error("NOT_FOUND");
+    if (ticket.technicianId !== userId) throw new Error("FORBIDDEN");
+    if (ticket.status !== "ON_SITE") {
+      res.status(422).json({ success: false, message: "Solo se pueden iniciar tickets en estado En sitio" });
       return;
     }
 
@@ -229,13 +291,62 @@ router.patch("/:id/start", async (req: AuthRequest, res: Response, next: NextFun
       data: { status: "IN_PROGRESS", startedAt: new Date() },
     });
 
+    recordStatus(req.params.id, "IN_PROGRESS", userId);
     res.json({ success: true, data: updated });
   } catch (err) {
     next(err);
   }
 });
 
-// PATCH /api/tickets/:id/close — admin closes (COMPLETED → CLOSED)
+// PATCH /api/tickets/:id/finish — technician finishes job, moves to report filling (IN_PROGRESS → PENDING_REPORT)
+router.patch("/:id/finish", async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const { role, userId } = req.user!;
+    if (role !== Role.TECHNICIAN) throw new Error("FORBIDDEN");
+
+    const ticket = await prisma.ticket.findUnique({ where: { id: req.params.id } });
+    if (!ticket) throw new Error("NOT_FOUND");
+    if (ticket.technicianId !== userId) throw new Error("FORBIDDEN");
+    if (ticket.status !== "IN_PROGRESS") {
+      res.status(422).json({ success: false, message: "Solo se pueden finalizar tickets en estado En progreso" });
+      return;
+    }
+
+    const updated = await prisma.ticket.update({
+      where: { id: req.params.id },
+      data: { status: "PENDING_REPORT" },
+    });
+
+    recordStatus(req.params.id, "PENDING_REPORT", userId);
+    res.json({ success: true, data: updated });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// PATCH /api/tickets/:id/reopen — admin reopens a COMPLETED ticket for report correction
+router.patch("/:id/reopen", requireAdmin, async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const ticket = await prisma.ticket.findFirst({ where: { id: req.params.id, companyId: req.user!.companyId! } });
+    if (!ticket) throw new Error("NOT_FOUND");
+    if (ticket.status !== "COMPLETED") {
+      res.status(422).json({ success: false, message: "Solo se pueden reabrir tickets en estado Completado" });
+      return;
+    }
+
+    const updated = await prisma.ticket.update({
+      where: { id: req.params.id },
+      data: { status: "REOPENED", closedAt: null },
+    });
+
+    recordStatus(req.params.id, "REOPENED", req.user!.userId);
+    res.json({ success: true, data: updated });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// PATCH /api/tickets/:id/close — admin closes (COMPLETED → CLOSED), auto-creates follow-up if spare parts required
 router.patch("/:id/close", requireAdmin, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const ticket = await prisma.ticket.findFirst({ where: { id: req.params.id, companyId: req.user!.companyId! } });
@@ -245,10 +356,125 @@ router.patch("/:id/close", requireAdmin, async (req: AuthRequest, res: Response,
       return;
     }
 
+    const report = await (prisma.ticketReport as any).findUnique({
+      where: { ticketId: req.params.id },
+      include: { spareParts: true },
+    });
+
+    const needsFollowUp = report?.requiresSpareParts && report.spareParts?.length > 0;
+
     const updated = await prisma.ticket.update({
       where: { id: req.params.id },
       data: { status: "CLOSED", closedAt: new Date() },
     });
+
+    recordStatus(req.params.id, "CLOSED", req.user!.userId);
+
+    if (needsFollowUp) {
+      await (prisma.ticket as any).create({
+        data: {
+          title: `[Repuestos] ${ticket.title}`,
+          description: `Seguimiento para instalación de repuestos requeridos en: ${ticket.title}`,
+          status: "REVIEW",
+          priority: ticket.priority,
+          clientId: ticket.clientId,
+          companyId: ticket.companyId,
+          branchId: ticket.branchId,
+          equipmentId: ticket.equipmentId,
+          parentTicketId: ticket.id,
+        },
+      });
+    }
+
+    res.json({ success: true, data: updated });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// PATCH /api/tickets/:id/submit-review — admin uploads document and moves REVIEW → PENDING_APPROVAL
+router.patch("/:id/submit-review", requireAdmin, async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const { reviewDocument } = z.object({ reviewDocument: z.string().url() }).parse(req.body);
+
+    const ticket = await prisma.ticket.findFirst({ where: { id: req.params.id, companyId: req.user!.companyId! } });
+    if (!ticket) throw new Error("NOT_FOUND");
+    if (ticket.status !== "REVIEW") {
+      res.status(422).json({ success: false, message: "Solo tickets en revisión pueden enviarse a aprobación" });
+      return;
+    }
+
+    const updated = await (prisma.ticket as any).update({
+      where: { id: req.params.id },
+      data: { status: "PENDING_APPROVAL", reviewDocument },
+    });
+
+    recordStatus(req.params.id, "PENDING_APPROVAL", req.user!.userId);
+
+    // Send email to all active CLIENT_USER accounts for this client
+    const clientUsers = await prisma.user.findMany({
+      where: { clientId: ticket.clientId, isActive: true, role: "CLIENT_USER" },
+      select: { email: true },
+    });
+    const company = await prisma.company.findUnique({ where: { id: ticket.companyId }, select: { name: true } });
+
+    if (clientUsers.length) {
+      const frontendUrl = process.env.FRONTEND_URL ?? "http://localhost:3000";
+      sendApprovalRequestEmail({
+        to: clientUsers.map((u) => u.email),
+        ticketTitle: ticket.title,
+        documentUrl: reviewDocument,
+        companyName: company?.name ?? "deployr",
+        approvalUrl: `${frontendUrl}/client/tickets/${ticket.id}`,
+      }).catch(() => {}); // fire-and-forget; don't fail the request if email fails
+    }
+
+    res.json({ success: true, data: updated });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// PATCH /api/tickets/:id/approve — admin or client approves (PENDING_APPROVAL → PENDING)
+router.patch("/:id/approve", async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const { role, companyId, clientId } = req.user!;
+    if (role !== "ADMIN" && role !== "CLIENT_USER") throw new Error("FORBIDDEN");
+
+    const ticket = await prisma.ticket.findUnique({ where: { id: req.params.id } });
+    if (!ticket) throw new Error("NOT_FOUND");
+    if (role === "ADMIN" && ticket.companyId !== companyId) throw new Error("FORBIDDEN");
+    if (role === "CLIENT_USER" && ticket.clientId !== clientId) throw new Error("FORBIDDEN");
+    if (ticket.status !== "PENDING_APPROVAL") {
+      res.status(422).json({ success: false, message: "Solo tickets en aprobación pendiente pueden aprobarse" });
+      return;
+    }
+
+    const updated = await prisma.ticket.update({
+      where: { id: req.params.id },
+      data: { status: "PENDING" },
+    });
+
+    recordStatus(req.params.id, "PENDING", req.user!.userId);
+
+    // Deduct spare parts from inventory when the follow-up ticket is approved
+    if ((ticket as any).parentTicketId) {
+      const parentReport = await (prisma.ticketReport as any).findUnique({
+        where: { ticketId: (ticket as any).parentTicketId },
+        include: { spareParts: true },
+      });
+
+      if (parentReport?.spareParts?.length) {
+        await Promise.all(
+          parentReport.spareParts.map(async (sp: { inventoryItemId: string; quantity: number }) => {
+            await prisma.inventoryItem.updateMany({
+              where: { id: sp.inventoryItemId, quantity: { gte: sp.quantity } },
+              data: { quantity: { decrement: sp.quantity } },
+            });
+          })
+        );
+      }
+    }
 
     res.json({ success: true, data: updated });
   } catch (err) {
@@ -271,6 +497,7 @@ router.patch("/:id/cancel", requireAdmin, async (req: AuthRequest, res: Response
       data: { status: "CANCELLED", closedAt: new Date() },
     });
 
+    recordStatus(req.params.id, "CANCELLED", req.user!.userId);
     res.json({ success: true, data: updated });
   } catch (err) {
     next(err);

@@ -1,4 +1,3 @@
-import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
 interface StatsCardProps {
@@ -7,23 +6,49 @@ interface StatsCardProps {
   description?: string;
   icon: React.ComponentType<{ className?: string }>;
   color?: string;
+  trend?: string;
+  /** 0-100 — renders a thin progress bar below the value */
+  progress?: number;
+  progressColor?: string;
 }
 
-export function StatsCard({ title, value, description, icon: Icon, color = "text-primary" }: StatsCardProps) {
+export function StatsCard({
+  title,
+  value,
+  description,
+  icon: Icon,
+  color = "text-primary",
+  trend,
+  progress,
+  progressColor,
+}: StatsCardProps) {
   return (
-    <Card>
-      <CardContent className="p-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm font-medium text-muted-foreground">{title}</p>
-            <p className="text-3xl font-bold mt-1">{value}</p>
-            {description && <p className="text-xs text-muted-foreground mt-1">{description}</p>}
+    <div className="glass-card inner-glow p-5 flex flex-col justify-between gap-4">
+      <div className="flex items-start justify-between">
+        <span className="font-label-caps text-on-surface-variant">{title}</span>
+        <Icon className={cn("h-5 w-5 shrink-0", color)} />
+      </div>
+      <div>
+        <p className="font-stat-value text-on-surface">{value}</p>
+
+        {progress !== undefined && (
+          <div className="w-full bg-surface-container-highest h-1 rounded-full mt-3 overflow-hidden">
+            <div
+              className={cn("h-full rounded-full transition-all duration-700", progressColor ?? color.replace("text-", "bg-"))}
+              style={{ width: `${Math.min(100, Math.max(0, progress))}%` }}
+            />
           </div>
-          <div className={cn("p-3 rounded-full bg-muted", color)}>
-            <Icon className="h-6 w-6" />
-          </div>
-        </div>
-      </CardContent>
-    </Card>
+        )}
+
+        {trend && (
+          <p className="text-tertiary text-xs flex items-center gap-1 mt-1 font-medium">
+            <span>↑</span>{trend}
+          </p>
+        )}
+        {description && (
+          <p className="text-xs text-on-surface-variant mt-1.5">{description}</p>
+        )}
+      </div>
+    </div>
   );
 }

@@ -7,8 +7,13 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import Link from "next/link";
 import { ChevronLeft, Plus, Trash2, GripVertical, Star, X } from "lucide-react";
-import { api } from "@/lib/api-client";
-import { ReportTemplate, ReportTemplateField, FieldType } from "@/lib/types";
+import { ReportTemplateField, FieldType } from "@/lib/types";
+import { useReportTemplate } from "@/lib/hooks/use-report-template";
+import {
+  TemplateDetail,
+  updateTemplate, deleteTemplate as deleteTemplateService, setDefaultTemplate,
+  addTemplateField, updateTemplateField, deleteTemplateField,
+} from "@/lib/services/report-templates";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -42,42 +47,30 @@ const fieldTypeLabel: Record<FieldType, string> = {
   MULTISELECT: "Selección múltiple",
 };
 
-type TemplateDetail = ReportTemplate & { fields: ReportTemplateField[]; _count: { clients: number } };
-
 export default function ReportTemplateDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
-  const [template, setTemplate] = useState<TemplateDetail | null>(null);
-  const [loading, setLoading] = useState(true);
   const [editingName, setEditingName] = useState(false);
   const [addingField, setAddingField] = useState(false);
   const [editingFieldId, setEditingFieldId] = useState<string | null>(null);
   const [acting, setActing] = useState(false);
 
   const nameForm = useForm<NameForm>({ resolver: zodResolver(nameSchema) });
+  const { template, loading, refetch } = useReportTemplate(id);
 
-  async function load() {
-    try {
-      const res = await api.get<TemplateDetail>(`/api/report-templates/${id}`);
-      setTemplate(res.data!);
-      nameForm.reset({ name: res.data!.name, description: res.data!.description ?? "" });
-    } catch {
-      toast({ variant: "destructive", title: "No se pudo cargar la plantilla" });
-      router.replace("/admin/reports");
-    } finally {
-      setLoading(false);
+  useEffect(() => {
+    if (template) {
+      nameForm.reset({ name: template.name, description: template.description ?? "" });
     }
-  }
-
-  useEffect(() => { load(); }, [id]);
+  }, [template, nameForm]);
 
   async function saveName(data: NameForm) {
     setActing(true);
     try {
-      await api.put(`/api/report-templates/${id}`, data);
+      await updateTemplate(id, data);
       toast({ title: "Plantilla actualizada" });
       setEditingName(false);
-      load();
+      refetch();
     } catch (e) {
       toast({ variant: "destructive", title: "Error", description: (e as Error).message });
     } finally {
@@ -88,9 +81,9 @@ export default function ReportTemplateDetailPage() {
   async function setDefault() {
     setActing(true);
     try {
-      await api.patch(`/api/report-templates/${id}/set-default`, {});
+      await setDefaultTemplate(id);
       toast({ title: "Plantilla establecida como predeterminada" });
-      load();
+      refetch();
     } catch (e) {
       toast({ variant: "destructive", title: "Error", description: (e as Error).message });
     } finally {
@@ -101,7 +94,7 @@ export default function ReportTemplateDetailPage() {
   async function deleteTemplate() {
     if (!confirm("¿Eliminar esta plantilla?")) return;
     try {
-      await api.del(`/api/report-templates/${id}`);
+      await deleteTemplateService(id);
       toast({ title: "Plantilla eliminada" });
       router.replace("/admin/reports");
     } catch (e) {
@@ -112,10 +105,10 @@ export default function ReportTemplateDetailPage() {
   async function addField(payload: FieldPayload) {
     setActing(true);
     try {
-      await api.post(`/api/report-templates/${id}/fields`, payload);
+      await addTemplateField(id, payload);
       toast({ title: "Campo agregado" });
       setAddingField(false);
-      load();
+      refetch();
     } catch (e) {
       toast({ variant: "destructive", title: "Error", description: (e as Error).message });
     } finally {
@@ -126,10 +119,10 @@ export default function ReportTemplateDetailPage() {
   async function saveField(fieldId: string, payload: FieldPayload) {
     setActing(true);
     try {
-      await api.put(`/api/report-templates/${id}/fields/${fieldId}`, payload);
+      await updateTemplateField(id, fieldId, payload);
       toast({ title: "Campo actualizado" });
       setEditingFieldId(null);
-      load();
+      refetch();
     } catch (e) {
       toast({ variant: "destructive", title: "Error", description: (e as Error).message });
     } finally {
@@ -140,9 +133,9 @@ export default function ReportTemplateDetailPage() {
   async function deleteField(fieldId: string) {
     if (!confirm("¿Eliminar este campo?")) return;
     try {
-      await api.del(`/api/report-templates/${id}/fields/${fieldId}`);
+      await deleteTemplateField(id, fieldId);
       toast({ title: "Campo eliminado" });
-      load();
+      refetch();
     } catch (e) {
       toast({ variant: "destructive", title: "Error", description: (e as Error).message });
     }

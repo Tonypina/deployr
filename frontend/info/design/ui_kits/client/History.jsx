@@ -2,7 +2,7 @@
 
 function ClientHistory({ tickets }) {
   const [selected, setSelected] = React.useState(null);
-  const completed = tickets.filter(t => t.status === "COMPLETED");
+  const completed = tickets.filter(t => t.status === "CLOSED");
 
   return (
     <div className="page-stack">

@@ -1,9 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Plus, Package, AlertTriangle, Minus } from "lucide-react";
-import { api } from "@/lib/api-client";
-import { InventoryItem } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,6 +11,9 @@ import { toast } from "@/hooks/use-toast";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { useInventory } from "@/lib/hooks/use-inventory";
+import { createInventoryItem, adjustInventory } from "@/lib/services/inventory";
+import { Pagination } from "@/components/ui/pagination";
 
 const schema = z.object({
   name: z.string().min(2),
@@ -26,8 +27,7 @@ const schema = z.object({
 type FormValues = z.infer<typeof schema>;
 
 export default function InventoryPage() {
-  const [items, setItems] = useState<InventoryItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { items, total, page, limit, loading, refetch, goToPage } = useInventory();
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -36,23 +36,14 @@ export default function InventoryPage() {
     defaultValues: { quantity: 0 },
   });
 
-  function load() {
-    api.get<InventoryItem[]>("/api/inventory")
-      .then((r) => setItems(r.data ?? []))
-      .catch((e) => toast({ variant: "destructive", title: "Error", description: e.message }))
-      .finally(() => setLoading(false));
-  }
-
-  useEffect(load, []);
-
   async function onSubmit(values: FormValues) {
     setSaving(true);
     try {
-      await api.post("/api/inventory", values);
+      await createInventoryItem(values);
       toast({ title: "Item agregado" });
       reset();
       setShowForm(false);
-      load();
+      refetch();
     } catch (e) {
       toast({ variant: "destructive", title: "Error", description: (e as Error).message });
     } finally {
@@ -62,21 +53,21 @@ export default function InventoryPage() {
 
   async function adjust(id: string, delta: number) {
     try {
-      const res = await api.patch<InventoryItem>(`/api/inventory/${id}/adjust`, { delta });
-      setItems((prev) => prev.map((i) => i.id === id ? res.data! : i));
+      const updated = await adjustInventory(id, delta);
+      refetch();
+      void updated;
     } catch (e) {
       toast({ variant: "destructive", title: "Error", description: (e as Error).message });
     }
   }
 
-  const lowStock = items.filter((i) => i.minStock != null && i.quantity <= i.minStock);
 
   return (
     <div className="page-stack">
       <div className="page-header">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Inventario</h1>
-          <p className="text-muted-foreground text-sm mt-0.5">{items.length} items · {lowStock.length} bajo stock</p>
+          <p className="text-muted-foreground text-sm mt-0.5">{total} items</p>
         </div>
         <Button onClick={() => setShowForm(!showForm)}>
           <Plus className="h-4 w-4 mr-1" />Agregar item
@@ -121,6 +112,7 @@ export default function InventoryPage() {
       {loading ? (
         <p className="text-sm text-muted-foreground">Cargando...</p>
       ) : (
+        <>
         <div className="grid gap-3">
           {items.map((item) => {
             const isLow = item.minStock != null && item.quantity <= item.minStock;
@@ -136,11 +128,11 @@ export default function InventoryPage() {
                     {item.minStock != null && <p className="text-xs text-muted-foreground">Mínimo: {item.minStock} {item.unit ?? ""}</p>}
                   </div>
                   <div className="flex items-center gap-2">
-                    <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => adjust(item.id, -1)}>
+                    <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => adjust(item.id, -1)}>
                       <Minus className="h-3 w-3" />
                     </Button>
                     <span className="text-lg font-bold w-12 text-center">{item.quantity}</span>
-                    <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => adjust(item.id, 1)}>
+                    <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => adjust(item.id, 1)}>
                       <Plus className="h-3 w-3" />
                     </Button>
                     <span className="text-xs text-muted-foreground">{item.unit ?? "uds"}</span>
@@ -150,6 +142,8 @@ export default function InventoryPage() {
             );
           })}
         </div>
+        <Pagination page={page} total={total} limit={limit} onPage={goToPage} />
+        </>
       )}
     </div>
   );

@@ -7,8 +7,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
-import { api } from "@/lib/api-client";
-import { ReportTemplate } from "@/lib/types";
+import { createTemplate } from "@/lib/services/report-templates";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -34,9 +33,9 @@ export default function NewReportTemplatePage() {
   async function onSubmit(data: FormValues) {
     setSaving(true);
     try {
-      const res = await api.post<ReportTemplate>("/api/report-templates", data);
+      const tmpl = await createTemplate(data);
       toast({ title: "Plantilla creada" });
-      router.replace(`/admin/reports/${res.data!.id}`);
+      router.replace(`/admin/reports/${tmpl.id}`);
     } catch (e) {
       toast({ variant: "destructive", title: "Error", description: (e as Error).message });
       setSaving(false);

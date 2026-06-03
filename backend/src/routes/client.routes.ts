@@ -5,22 +5,27 @@ import { prisma } from "../lib/prisma";
 import { authenticate, requireAdmin } from "../middleware/auth";
 import { AuthRequest, paginate } from "../types";
 import { encrypt, decrypt, encryptField, decryptField } from "../utils/encryption";
+import { clean, cleanEmail, cleanOpt } from "../utils/sanitize";
 
 const router = Router();
 
 const clientSchema = z.object({
-  name: z.string().min(2),
-  contactEmail: z.string().email(),
-  contactPhone: z.string().optional(),
-  taxId: z.string().optional(),
-  address: z.string().optional(),
+  name:         z.string().min(2).transform(clean),
+  contactEmail: z.string().email().transform(cleanEmail),
+  contactPhone: z.string().optional().transform(cleanOpt),
+  taxId:        z.string().optional().transform(cleanOpt),
+  address:      z.string().optional().transform(cleanOpt),
 });
 
 const portalUserSchema = z.object({
-  email: z.string().email(),
+  email:    z.string().email().transform(cleanEmail),
   password: z.string().min(8),
-  name: z.string().min(2),
-  phone: z.string().optional(),
+  name:     z.string().min(2).transform(clean),
+  phone:    z.string().optional().transform(cleanOpt),
+});
+
+const resetPasswordSchema = z.object({
+  password: z.string().min(8, "La contraseña debe tener al menos 8 caracteres"),
 });
 
 function encryptClient(data: z.infer<typeof clientSchema>) {
@@ -46,42 +51,45 @@ function decryptClient(client: {
   };
 }
 
-router.use(authenticate, requireAdmin);
-
 // GET /api/clients
-router.get("/", async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.get("/", authenticate, requireAdmin, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const { page = "1", limit = "20", search } = req.query as Record<string, string>;
     const { take, skip } = paginate(Number(page), Number(limit));
 
-    const clients = await prisma.client.findMany({
-      where: { companyId: req.user!.companyId! },
-      orderBy: { createdAt: "desc" },
-      take,
-      skip,
-      include: { _count: { select: { branches: true, tickets: true } } },
-    });
+    const where = {
+      companyId: req.user!.companyId!,
+      ...(search ? { name: { contains: search, mode: "insensitive" as const } } : {}),
+    };
 
-    const decrypted = clients.map((c) => {
-      const plain = decryptClient(c);
-      // Filter by decrypted email if search provided
-      if (search && !plain.name.toLowerCase().includes(search.toLowerCase()) &&
-          !plain.contactEmail.toLowerCase().includes(search.toLowerCase())) return null;
-      return plain;
-    }).filter(Boolean);
+    const [clients, total] = await Promise.all([
+      prisma.client.findMany({
+        where,
+        orderBy: { createdAt: "desc" },
+        take,
+        skip,
+        include: { _count: { select: { branches: true, tickets: true } } },
+      }),
+      prisma.client.count({ where }),
+    ]);
 
-    res.json({ success: true, data: decrypted });
+    const decrypted = clients.map(decryptClient);
+
+    res.json({ success: true, data: { clients: decrypted, total, page: Number(page), limit: take } });
   } catch (err) {
     next(err);
   }
 });
 
 // GET /api/clients/:id
-router.get("/:id", async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.get("/:id", authenticate, requireAdmin, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const client = await prisma.client.findFirst({
       where: { id: req.params.id, companyId: req.user!.companyId! },
-      include: { branches: { include: { equipment: true } }, users: { select: { id: true, name: true, email: true, isActive: true } } },
+      include: {
+        branches: { include: { equipment: true } },
+        users: { select: { id: true, name: true, email: true, isActive: true, mustChangePassword: true } },
+      },
     });
     if (!client) throw new Error("NOT_FOUND");
     res.json({ success: true, data: decryptClient(client) });
@@ -91,7 +99,7 @@ router.get("/:id", async (req: AuthRequest, res: Response, next: NextFunction) =
 });
 
 // POST /api/clients
-router.post("/", async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.post("/", authenticate, requireAdmin, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const body = clientSchema.parse(req.body);
     const client = await prisma.client.create({
@@ -104,7 +112,7 @@ router.post("/", async (req: AuthRequest, res: Response, next: NextFunction) => 
 });
 
 // PUT /api/clients/:id
-router.put("/:id", async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.put("/:id", authenticate, requireAdmin, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const body = clientSchema.partial().parse(req.body);
     const existing = await prisma.client.findFirst({ where: { id: req.params.id, companyId: req.user!.companyId! } });
@@ -125,7 +133,7 @@ router.put("/:id", async (req: AuthRequest, res: Response, next: NextFunction) =
 });
 
 // PATCH /api/clients/:id/template — assign/unassign report template
-router.patch("/:id/template", async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.patch("/:id/template", authenticate, requireAdmin, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const { templateId } = z.object({ templateId: z.string().nullable() }).parse(req.body);
     const existing = await prisma.client.findFirst({ where: { id: req.params.id, companyId: req.user!.companyId! } });
@@ -144,7 +152,7 @@ router.patch("/:id/template", async (req: AuthRequest, res: Response, next: Next
 });
 
 // DELETE /api/clients/:id
-router.delete("/:id", async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.delete("/:id", authenticate, requireAdmin, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const client = await prisma.client.findFirst({ where: { id: req.params.id, companyId: req.user!.companyId! } });
     if (!client) throw new Error("NOT_FOUND");
@@ -155,8 +163,8 @@ router.delete("/:id", async (req: AuthRequest, res: Response, next: NextFunction
   }
 });
 
-// POST /api/clients/:id/users  — create a portal user for this client
-router.post("/:id/users", async (req: AuthRequest, res: Response, next: NextFunction) => {
+// POST /api/clients/:id/users  — create a portal user (temp password, must change on first login)
+router.post("/:id/users", authenticate, requireAdmin, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const body = portalUserSchema.parse(req.body);
     const client = await prisma.client.findFirst({ where: { id: req.params.id, companyId: req.user!.companyId! } });
@@ -173,13 +181,39 @@ router.post("/:id/users", async (req: AuthRequest, res: Response, next: NextFunc
         name: body.name,
         phone: body.phone,
         role: "CLIENT_USER",
+        mustChangePassword: true,
         companyId: req.user!.companyId,
         clientId: client.id,
       },
-      select: { id: true, name: true, email: true, role: true, clientId: true },
+      select: { id: true, name: true, email: true, role: true, isActive: true, mustChangePassword: true, clientId: true },
     });
 
     res.status(201).json({ success: true, data: user });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// PUT /api/clients/:clientId/users/:userId/password — admin resets a portal user's password
+router.put("/:clientId/users/:userId/password", authenticate, requireAdmin, async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const { password } = resetPasswordSchema.parse(req.body);
+
+    const client = await prisma.client.findFirst({ where: { id: req.params.clientId, companyId: req.user!.companyId! } });
+    if (!client) throw new Error("NOT_FOUND");
+
+    const user = await prisma.user.findFirst({
+      where: { id: req.params.userId, clientId: req.params.clientId, role: "CLIENT_USER" },
+    });
+    if (!user) throw new Error("NOT_FOUND");
+
+    const hashed = await bcrypt.hash(password, 12);
+    await prisma.user.update({
+      where: { id: req.params.userId },
+      data: { password: hashed, mustChangePassword: true },
+    });
+
+    res.json({ success: true, message: "Contraseña actualizada. El usuario deberá cambiarla en su próximo ingreso." });
   } catch (err) {
     next(err);
   }

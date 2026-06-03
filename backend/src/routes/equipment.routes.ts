@@ -1,19 +1,21 @@
 import { Router, Response, NextFunction } from "express";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
-import { authenticate, requireAdmin, requireAdminOrTech } from "../middleware/auth";
+import { authenticate, requireAdmin, requireAdminOrClient, requireAdminOrTechOrClient } from "../middleware/auth";
 import { AuthRequest } from "../types";
+
+import { clean, cleanOpt } from "../utils/sanitize";
 
 const router = Router({ mergeParams: true }); // /api/clients/:clientId/branches/:branchId/equipment
 
 const equipmentSchema = z.object({
-  name: z.string().min(2),
-  brand: z.string().optional(),
-  serialNumber: z.string().optional(),
-  model: z.string().optional(),
-  notes: z.string().optional(),
-  installedAt: z.string().datetime().optional(),
-  productId: z.string().optional(),
+  name:         z.string().min(2).transform(clean),
+  brand:        z.string().optional().transform(cleanOpt),
+  serialNumber: z.string().optional().transform(cleanOpt),
+  model:        z.string().optional().transform(cleanOpt),
+  notes:        z.string().optional().transform(cleanOpt),
+  installedAt:  z.string().datetime().optional(),
+  productId:    z.string().optional(),
 });
 
 async function getBranchForCompany(branchId: string, clientId: string, companyId: string) {
@@ -22,9 +24,10 @@ async function getBranchForCompany(branchId: string, clientId: string, companyId
   });
 }
 
-// GET — accessible by admins and technicians
-router.get("/", authenticate, requireAdminOrTech, async (req: AuthRequest, res: Response, next: NextFunction) => {
+// GET - accessible by admins, technicians, and the owning client user
+router.get("/", authenticate, requireAdminOrTechOrClient, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
+    if (req.user!.clientId && req.params.clientId !== req.user!.clientId) throw new Error("FORBIDDEN");
     const branch = await getBranchForCompany(req.params.branchId, req.params.clientId, req.user!.companyId!);
     if (!branch) throw new Error("NOT_FOUND");
 
@@ -41,8 +44,9 @@ router.get("/", authenticate, requireAdminOrTech, async (req: AuthRequest, res: 
 });
 
 // GET /:id
-router.get("/:id", authenticate, requireAdminOrTech, async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.get("/:id", authenticate, requireAdminOrTechOrClient, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
+    if (req.user!.clientId && req.params.clientId !== req.user!.clientId) throw new Error("FORBIDDEN");
     const branch = await getBranchForCompany(req.params.branchId, req.params.clientId, req.user!.companyId!);
     if (!branch) throw new Error("NOT_FOUND");
 
@@ -57,9 +61,10 @@ router.get("/:id", authenticate, requireAdminOrTech, async (req: AuthRequest, re
   }
 });
 
-// POST — admin only
-router.post("/", authenticate, requireAdmin, async (req: AuthRequest, res: Response, next: NextFunction) => {
+// POST
+router.post("/", authenticate, requireAdminOrClient, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
+    if (req.user!.clientId && req.params.clientId !== req.user!.clientId) throw new Error("FORBIDDEN");
     const body = equipmentSchema.parse(req.body);
     const branch = await getBranchForCompany(req.params.branchId, req.params.clientId, req.user!.companyId!);
     if (!branch) throw new Error("NOT_FOUND");
@@ -78,7 +83,7 @@ router.post("/", authenticate, requireAdmin, async (req: AuthRequest, res: Respo
   }
 });
 
-// PUT /:id — admin only
+// PUT /:id - admin only
 router.put("/:id", authenticate, requireAdmin, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const body = equipmentSchema.partial().parse(req.body);
@@ -99,7 +104,7 @@ router.put("/:id", authenticate, requireAdmin, async (req: AuthRequest, res: Res
   }
 });
 
-// DELETE /:id — admin only
+// DELETE /:id - admin only
 router.delete("/:id", authenticate, requireAdmin, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const branch = await getBranchForCompany(req.params.branchId, req.params.clientId, req.user!.companyId!);

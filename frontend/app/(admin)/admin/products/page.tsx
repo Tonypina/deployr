@@ -1,9 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Plus, Wrench } from "lucide-react";
-import { api } from "@/lib/api-client";
-import { Product } from "@/lib/types";
+import { useState } from "react";
+import { Plus, Wrench, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,6 +10,8 @@ import { toast } from "@/hooks/use-toast";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { useProducts } from "@/lib/hooks/use-products";
+import { createProduct, deleteProduct } from "@/lib/services/products";
 
 const schema = z.object({
   name: z.string().min(2),
@@ -22,8 +22,7 @@ const schema = z.object({
 type FormValues = z.infer<typeof schema>;
 
 export default function ProductsPage() {
-  const [products, setProducts] = useState<Product[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { products, loading, refetch } = useProducts();
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -31,23 +30,14 @@ export default function ProductsPage() {
     resolver: zodResolver(schema),
   });
 
-  function load() {
-    api.get<Product[]>("/api/products")
-      .then((r) => setProducts(r.data ?? []))
-      .catch((e) => toast({ variant: "destructive", title: "Error", description: e.message }))
-      .finally(() => setLoading(false));
-  }
-
-  useEffect(load, []);
-
   async function onSubmit(values: FormValues) {
     setSaving(true);
     try {
-      await api.post("/api/products", values);
+      await createProduct(values);
       toast({ title: "Producto creado" });
       reset();
       setShowForm(false);
-      load();
+      refetch();
     } catch (e) {
       toast({ variant: "destructive", title: "Error", description: (e as Error).message });
     } finally {
@@ -55,11 +45,11 @@ export default function ProductsPage() {
     }
   }
 
-  async function deleteProduct(id: string) {
+  async function handleDelete(id: string) {
     if (!confirm("¿Eliminar este producto?")) return;
     try {
-      await api.del(`/api/products/${id}`);
-      setProducts((prev) => prev.filter((p) => p.id !== id));
+      await deleteProduct(id);
+      refetch();
     } catch (e) {
       toast({ variant: "destructive", title: "Error", description: (e as Error).message });
     }
@@ -125,8 +115,8 @@ export default function ProductsPage() {
                     {p.description && <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{p.description}</p>}
                     <p className="text-xs text-muted-foreground mt-2">{p._count?.equipment ?? 0} equipos vinculados</p>
                   </div>
-                  <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={() => deleteProduct(p.id)}>
-                    Eliminar
+                  <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => handleDelete(p.id)}>
+                    <Trash2 className="h-3.5 w-3.5" />
                   </Button>
                 </div>
               </CardContent>

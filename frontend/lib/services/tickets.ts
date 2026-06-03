@@ -1,0 +1,94 @@
+import { api } from "@/lib/api-client";
+import { Ticket } from "@/lib/types";
+
+export async function getTickets(params?: {
+  status?: string;
+  limit?: number;
+  page?: number;
+  year?: number;
+  search?: string;
+  clientId?: string;
+  technicianId?: string;
+  branchId?: string;
+  equipmentId?: string;
+  orderBy?: "createdAt" | "updatedAt";
+}) {
+  const qs = new URLSearchParams();
+  if (params?.status)      qs.set("status",      params.status);
+  if (params?.limit)       qs.set("limit",        String(params.limit));
+  if (params?.page)        qs.set("page",         String(params.page));
+  if (params?.year)        qs.set("year",         String(params.year));
+  if (params?.search)      qs.set("search",       params.search);
+  if (params?.clientId)    qs.set("clientId",     params.clientId);
+  if (params?.technicianId) qs.set("technicianId", params.technicianId);
+  if (params?.branchId)    qs.set("branchId",     params.branchId);
+  if (params?.equipmentId) qs.set("equipmentId",  params.equipmentId);
+  if (params?.orderBy)     qs.set("orderBy",      params.orderBy);
+  const q = qs.toString();
+  const res = await api.get<{ tickets: Ticket[]; total: number; page: number; limit: number }>(`/api/tickets${q ? `?${q}` : ""}`);
+  return res.data!;
+}
+
+export async function getTicket(id: string) {
+  const res = await api.get<Ticket>(`/api/tickets/${id}`);
+  return res.data!;
+}
+
+export async function createTicket(data: {
+  title: string;
+  description?: string;
+  priority: string;
+  clientId?: string;
+  branchId?: string;
+  equipmentId?: string;
+  technicianId?: string;
+  scheduledAt?: string;
+}) {
+  const res = await api.post<Ticket>("/api/tickets", data);
+  return res.data!;
+}
+
+export async function assignTicket(id: string, data: { technicianId: string; scheduledAt?: string }) {
+  const res = await api.patch<Ticket>(`/api/tickets/${id}/assign`, data);
+  return res.data!;
+}
+
+export async function checkinTicket(id: string) {
+  const res = await api.patch<Ticket>(`/api/tickets/${id}/checkin`, {});
+  return res.data!;
+}
+
+export async function startTicket(id: string) {
+  const res = await api.patch<Ticket>(`/api/tickets/${id}/start`, {});
+  return res.data!;
+}
+
+export async function finishTicket(id: string) {
+  const res = await api.patch<Ticket>(`/api/tickets/${id}/finish`, {});
+  return res.data!;
+}
+
+export async function closeTicket(id: string) {
+  const res = await api.patch<Ticket>(`/api/tickets/${id}/close`, {});
+  return res.data!;
+}
+
+export async function cancelTicket(id: string) {
+  const res = await api.patch<Ticket>(`/api/tickets/${id}/cancel`, {});
+  return res.data!;
+}
+
+export async function submitReview(id: string, reviewDocument: string) {
+  const res = await api.patch<Ticket>(`/api/tickets/${id}/submit-review`, { reviewDocument });
+  return res.data!;
+}
+
+export async function approveTicket(id: string) {
+  const res = await api.patch<Ticket>(`/api/tickets/${id}/approve`, {});
+  return res.data!;
+}
+
+export async function reopenTicket(id: string) {
+  const res = await api.patch<Ticket>(`/api/tickets/${id}/reopen`, {});
+  return res.data!;
+}

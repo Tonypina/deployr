@@ -4,21 +4,26 @@ import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { authenticate, requireAdmin } from "../middleware/auth";
 import { AuthRequest, paginate } from "../types";
+import { clean, cleanEmail, cleanOpt } from "../utils/sanitize";
 
 const router = Router();
 
 const createUserSchema = z.object({
-  email: z.string().email(),
+  email:    z.string().email().transform(cleanEmail),
   password: z.string().min(8),
-  name: z.string().min(2),
-  role: z.enum(["TECHNICIAN"]),
-  phone: z.string().optional(),
+  name:     z.string().min(2).transform(clean),
+  role:     z.enum(["TECHNICIAN", "ADMIN"]),
+  phone:    z.string().optional().transform(cleanOpt),
 });
 
 const updateUserSchema = z.object({
-  name: z.string().min(2).optional(),
-  phone: z.string().optional(),
+  name:     z.string().min(2).optional().transform(cleanOpt),
+  phone:    z.string().optional().transform(cleanOpt),
   isActive: z.boolean().optional(),
+});
+
+const resetPasswordSchema = z.object({
+  password: z.string().min(8, "La contraseña debe tener al menos 8 caracteres"),
 });
 
 // All user routes require admin
@@ -36,7 +41,7 @@ router.get("/", async (req: AuthRequest, res: Response, next: NextFunction) => {
           companyId: req.user!.companyId,
           ...(role ? { role: role as "ADMIN" | "TECHNICIAN" } : {}),
         },
-        select: { id: true, name: true, email: true, role: true, phone: true, isActive: true, createdAt: true },
+        select: { id: true, name: true, email: true, role: true, phone: true, isActive: true, mustChangePassword: true, createdAt: true },
         orderBy: { createdAt: "desc" },
         take,
         skip,
@@ -50,7 +55,7 @@ router.get("/", async (req: AuthRequest, res: Response, next: NextFunction) => {
   }
 });
 
-// POST /api/users  — create a TECHNICIAN
+// POST /api/users  — create a TECHNICIAN (temp password, must change on first login)
 router.post("/", async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const body = createUserSchema.parse(req.body);
@@ -63,9 +68,10 @@ router.post("/", async (req: AuthRequest, res: Response, next: NextFunction) => 
       data: {
         ...body,
         password: hashed,
+        mustChangePassword: true,
         companyId: req.user!.companyId,
       },
-      select: { id: true, name: true, email: true, role: true, phone: true, isActive: true, createdAt: true },
+      select: { id: true, name: true, email: true, role: true, phone: true, isActive: true, mustChangePassword: true, createdAt: true },
     });
 
     res.status(201).json({ success: true, data: user });
@@ -87,10 +93,32 @@ router.put("/:id", async (req: AuthRequest, res: Response, next: NextFunction) =
     const updated = await prisma.user.update({
       where: { id: req.params.id },
       data: body,
-      select: { id: true, name: true, email: true, role: true, phone: true, isActive: true },
+      select: { id: true, name: true, email: true, role: true, phone: true, isActive: true, mustChangePassword: true },
     });
 
     res.json({ success: true, data: updated });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// PUT /api/users/:id/password — admin resets a technician's password
+router.put("/:id/password", async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const { password } = resetPasswordSchema.parse(req.body);
+
+    const user = await prisma.user.findFirst({
+      where: { id: req.params.id, companyId: req.user!.companyId },
+    });
+    if (!user) throw new Error("NOT_FOUND");
+
+    const hashed = await bcrypt.hash(password, 12);
+    await prisma.user.update({
+      where: { id: req.params.id },
+      data: { password: hashed, mustChangePassword: true },
+    });
+
+    res.json({ success: true, message: "Contraseña actualizada. El usuario deberá cambiarla en su próximo ingreso." });
   } catch (err) {
     next(err);
   }

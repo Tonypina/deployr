@@ -1,20 +1,25 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import Link from "next/link";
-import { Eye, EyeOff, Loader2, Building2, User, CheckCircle2 } from "lucide-react";
-import { api } from "@/lib/api-client";
+import { Eye, EyeOff, Loader2, Building2, User, CheckCircle2, ChevronLeft } from "lucide-react";
+import { register as registerUser } from "@/lib/services/auth";
 import { useAuthStore } from "@/lib/auth-store";
-import { AuthUser } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+
+const PLAN_LABELS: Record<string, { name: string; price: string; color: string }> = {
+  iniciador:    { name: "Iniciador",    price: "$1,799 MXN/mes", color: "text-on-surface-variant" },
+  profesional:  { name: "Profesional",  price: "$5,299 MXN/mes", color: "text-primary" },
+  empresarial:  { name: "Empresarial",  price: "Precios personalizados", color: "text-secondary" },
+};
 
 const schema = z
   .object({
@@ -54,6 +59,9 @@ const strengthConfig: Record<StrengthLevel, { label: string; color: string; bars
 
 export default function RegisterPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const selectedPlan = searchParams.get("plan") ?? null;
+  const planInfo = selectedPlan ? PLAN_LABELS[selectedPlan] : null;
   const setAuth = useAuthStore((s) => s.setAuth);
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -73,8 +81,8 @@ export default function RegisterPage() {
     setLoading(true);
     try {
       const { confirmPassword: _, ...payload } = values;
-      const res = await api.post<{ token: string; user: AuthUser }>("/api/auth/register", payload);
-      setAuth(res.data!.user, res.data!.token);
+      const res = await registerUser(payload);
+      setAuth(res.user, res.token);
       router.replace("/admin");
     } catch (err) {
       toast({
@@ -90,8 +98,27 @@ export default function RegisterPage() {
   return (
     <>
       <div className="px-6 pb-2">
-        <h2 className="text-xl font-bold text-slate-900">Crea tu cuenta</h2>
-        <p className="text-slate-500 text-sm mt-1">Registra tu empresa y comienza a gestionar</p>
+        {planInfo && (
+          <Link
+            href="/pricing"
+            className="inline-flex items-center gap-1 text-xs text-on-surface-variant hover:text-on-surface mb-3 transition-colors"
+          >
+            <ChevronLeft className="h-3 w-3" />
+            Cambiar plan
+          </Link>
+        )}
+        <h2 className="text-xl font-bold text-on-surface">Crea tu cuenta</h2>
+        <p className="text-on-surface-variant text-sm mt-1">Registra tu empresa y comienza a gestionar</p>
+
+        {planInfo && (
+          <div className="mt-3 flex items-center justify-between px-3 py-2.5 rounded-lg bg-surface-container border border-outline-variant/40">
+            <div>
+              <p className="text-xs text-on-surface-variant">Plan seleccionado</p>
+              <p className={cn("text-sm font-semibold mt-0.5", planInfo.color)}>{planInfo.name}</p>
+            </div>
+            <p className="text-xs font-medium text-on-surface-variant">{planInfo.price}</p>
+          </div>
+        )}
       </div>
 
       <form onSubmit={handleSubmit(onSubmit)} noValidate>
@@ -99,10 +126,10 @@ export default function RegisterPage() {
           {/* Company section */}
           <div className="space-y-3">
             <div className="flex items-center gap-2">
-              <div className="w-5 h-5 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
-                <Building2 className="w-3 h-3 text-blue-600" />
+              <div className="w-5 h-5 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
+                <Building2 className="w-3 h-3 text-primary" />
               </div>
-              <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+              <span className="text-xs font-semibold uppercase tracking-wider text-on-surface-variant">
                 Empresa
               </span>
             </div>
@@ -130,15 +157,15 @@ export default function RegisterPage() {
             </div>
           </div>
 
-          <div className="border-t border-slate-100" />
+          <div className="border-t border-border" />
 
           {/* Admin section */}
           <div className="space-y-3">
             <div className="flex items-center gap-2">
-              <div className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center shrink-0">
-                <User className="w-3 h-3 text-slate-600" />
+              <div className="w-5 h-5 rounded-full bg-surface-container-high flex items-center justify-center shrink-0">
+                <User className="w-3 h-3 text-on-surface-variant" />
               </div>
-              <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+              <span className="text-xs font-semibold uppercase tracking-wider text-on-surface-variant">
                 Administrador
               </span>
             </div>
@@ -182,7 +209,7 @@ export default function RegisterPage() {
                   type="button"
                   tabIndex={-1}
                   onClick={() => setShowPassword((v) => !v)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-on-surface transition-colors"
                 >
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
@@ -196,7 +223,7 @@ export default function RegisterPage() {
                         key={bar}
                         className={cn(
                           "h-1 flex-1 rounded-full transition-all duration-300",
-                          bar <= strengthBars ? strengthColor : "bg-slate-200"
+                          bar <= strengthBars ? strengthColor : "bg-surface-container-highest"
                         )}
                       />
                     ))}
@@ -230,7 +257,7 @@ export default function RegisterPage() {
                   type="button"
                   tabIndex={-1}
                   onClick={() => setShowConfirm((v) => !v)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-on-surface transition-colors"
                 >
                   {showConfirm ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
@@ -255,9 +282,9 @@ export default function RegisterPage() {
             )}
           </Button>
 
-          <p className="text-center text-sm text-slate-500">
+          <p className="text-center text-sm text-on-surface-variant">
             ¿Ya tienes cuenta?{" "}
-            <Link href="/login" className="text-blue-600 font-medium hover:underline">
+            <Link href="/login" className="text-primary font-medium hover:underline">
               Inicia sesión
             </Link>
           </p>

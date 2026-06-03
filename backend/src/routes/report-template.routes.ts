@@ -6,19 +6,21 @@ import { AuthRequest } from "../types";
 import { getEffectiveTemplate, getOrCreateDefaultTemplate } from "../utils/default-template";
 import { Role } from "@prisma/client";
 
+import { clean, cleanOpt } from "../utils/sanitize";
+
 const router = Router();
 
 const templateSchema = z.object({
-  name: z.string().min(2),
-  description: z.string().optional(),
+  name:        z.string().min(2).transform(clean),
+  description: z.string().optional().transform(cleanOpt),
 });
 
 const fieldSchema = z.object({
-  label: z.string().min(1),
-  type: z.enum(["TEXT", "TEXTAREA", "DATE", "NUMBER", "PHOTO", "MULTISELECT"]),
+  label:    z.string().min(1).transform(clean),
+  type:     z.enum(["TEXT", "TEXTAREA", "DATE", "NUMBER", "PHOTO", "MULTISELECT"]),
   required: z.boolean().default(false),
-  order: z.number().int().default(0),
-  options: z.array(z.string()).default([]),
+  order:    z.number().int().default(0),
+  options:  z.array(z.string()).default([]).transform(arr => arr.map(clean)),
 });
 
 router.use(authenticate);

@@ -1,84 +1,242 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { api } from "@/lib/api-client";
-import { Ticket } from "@/lib/types";
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { ClipboardList, ChevronRight, Search, X } from "lucide-react";
+import { Ticket, TicketStatus } from "@/lib/types";
 import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Pagination } from "@/components/ui/pagination";
 import { cn, statusColor, statusLabel, priorityColor, priorityLabel, formatDate } from "@/lib/utils";
+import { getTickets } from "@/lib/services/tickets";
 import { toast } from "@/hooks/use-toast";
-import { Button } from "@/components/ui/button";
-import { ClipboardList } from "lucide-react";
+
+const PAGE_SIZE = 5;
+
+const CLIENT_STATUSES: TicketStatus[] = [
+  "PENDING", "ASSIGNED", "IN_PROGRESS", "REOPENED",
+  "COMPLETED", "CLOSED", "CANCELLED", "EXPIRED", "PENDING_APPROVAL",
+];
+
+const selectClass =
+  "flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
 export default function HistoryPage() {
+  const [optionTickets, setOptionTickets] = useState<Ticket[]>([]);
+
   const [tickets, setTickets] = useState<Ticket[]>([]);
+  const [total, setTotal]     = useState(0);
+  const [page, setPage]       = useState(1);
   const [loading, setLoading] = useState(true);
-  const [selected, setSelected] = useState<Ticket | null>(null);
+
+  const [search, setSearch]                   = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [statusFilter, setStatusFilter]       = useState<Set<TicketStatus>>(new Set());
+  const [branchId, setBranchId]               = useState("");
+  const [equipmentId, setEquipmentId]         = useState("");
+
+  const statusKey = useMemo(() => [...statusFilter].sort().join(","), [statusFilter]);
 
   useEffect(() => {
-    api.get<{ tickets: Ticket[] }>("/api/tickets?status=COMPLETED&limit=50")
-      .then((r) => setTickets(r.data?.tickets ?? []))
-      .catch((e) => toast({ variant: "destructive", title: "Error", description: e.message }))
-      .finally(() => setLoading(false));
+    const t = setTimeout(() => { setDebouncedSearch(search); setPage(1); }, 350);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  useEffect(() => {
+    getTickets({ limit: 100 }).then((d) => setOptionTickets(d.tickets)).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    setLoading(true);
+    getTickets({
+      limit: PAGE_SIZE,
+      page,
+      search:     debouncedSearch || undefined,
+      status:     statusKey       || undefined,
+      branchId:   branchId        || undefined,
+      equipmentId: equipmentId    || undefined,
+    })
+      .then((d) => { setTickets(d.tickets); setTotal(d.total); })
+      .catch(() => toast({ variant: "destructive", title: "Error al cargar historial" }))
+      .finally(() => setLoading(false));
+  }, [page, debouncedSearch, statusKey, branchId, equipmentId]);
+
+  // ── Derived dropdown options ───────────────────────────────────────────────
+
+  const availableBranches = useMemo(() => {
+    const map = new Map<string, string>();
+    optionTickets.forEach((t) => {
+      if (t.branch) map.set(t.branch.id, t.branch.city ? `${t.branch.name} · ${t.branch.city}` : t.branch.name);
+    });
+    return [...map.entries()].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
+  }, [optionTickets]);
+
+  const availableEquipment = useMemo(() => {
+    const map = new Map<string, string>();
+    optionTickets
+      .filter((t) => !branchId || t.branchId === branchId)
+      .forEach((t) => { if (t.equipment) map.set(t.equipment.id, t.equipment.name); });
+    return [...map.entries()].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
+  }, [optionTickets, branchId]);
+
+  // ── Handlers ──────────────────────────────────────────────────────────────
+
+  function toggleStatus(s: TicketStatus) {
+    setPage(1);
+    setStatusFilter((prev) => { const next = new Set(prev); next.has(s) ? next.delete(s) : next.add(s); return next; });
+  }
+
+  function handleBranchChange(id: string) {
+    setPage(1); setBranchId(id); setEquipmentId("");
+  }
+
+  function clearFilters() {
+    setPage(1);
+    setSearch(""); setDebouncedSearch("");
+    setStatusFilter(new Set());
+    setBranchId(""); setEquipmentId("");
+  }
+
+  const activeFilterCount = (statusFilter.size > 0 ? 1 : 0) + (branchId ? 1 : 0) + (equipmentId ? 1 : 0);
 
   return (
     <div className="page-stack">
+
+      {/* Header */}
       <div className="page-header">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Historial de servicios</h1>
-          <p className="text-muted-foreground text-sm mt-0.5">{tickets.length} servicios completados</p>
+          <p className="text-muted-foreground text-sm mt-0.5">
+            {loading ? "Cargando..." : `${total} servicio${total !== 1 ? "s" : ""}`}
+          </p>
         </div>
+        {activeFilterCount > 0 && (
+          <button onClick={clearFilters} className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-destructive transition-colors">
+            <X className="h-3.5 w-3.5" />
+            Limpiar {activeFilterCount} filtro{activeFilterCount !== 1 ? "s" : ""}
+          </button>
+        )}
       </div>
 
+      {/* Filters */}
+      <Card>
+        <CardContent className="pt-4 space-y-4">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Buscar por nombre del servicio..."
+              className="pl-9 pr-9"
+            />
+            {search && (
+              <button onClick={() => { setSearch(""); setDebouncedSearch(""); setPage(1); }} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors">
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
+
+          <div>
+            <p className="text-xs font-medium text-muted-foreground mb-2">Estado</p>
+            <div className="flex flex-wrap gap-1.5">
+              {CLIENT_STATUSES.map((s) => {
+                const on = statusFilter.has(s);
+                return (
+                  <button
+                    key={s}
+                    onClick={() => toggleStatus(s)}
+                    className={cn(
+                      "text-xs px-2.5 py-1 rounded-full font-medium transition-all border",
+                      on
+                        ? cn(statusColor[s], "border-transparent")
+                        : "bg-muted/40 border-border text-muted-foreground hover:border-primary/40 hover:text-foreground"
+                    )}
+                  >
+                    {statusLabel[s]}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <p className="text-xs font-medium text-muted-foreground mb-1.5">Sucursal</p>
+              <select
+                value={branchId}
+                onChange={(e) => handleBranchChange(e.target.value)}
+                disabled={availableBranches.length === 0}
+                className={cn(selectClass, availableBranches.length === 0 && "opacity-40 cursor-not-allowed")}
+              >
+                <option value="">Todas las sucursales</option>
+                {availableBranches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <p className="text-xs font-medium text-muted-foreground mb-1.5">Equipo</p>
+              <select
+                value={equipmentId}
+                onChange={(e) => { setPage(1); setEquipmentId(e.target.value); }}
+                disabled={availableEquipment.length === 0}
+                className={cn(selectClass, availableEquipment.length === 0 && "opacity-40 cursor-not-allowed")}
+              >
+                <option value="">Todos los equipos</option>
+                {availableEquipment.map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}
+              </select>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Results */}
       {loading ? (
         <p className="text-sm text-muted-foreground">Cargando...</p>
-      ) : !tickets.length ? (
+      ) : tickets.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center py-12 gap-2">
             <ClipboardList className="h-10 w-10 text-muted-foreground" />
-            <p className="font-medium">Sin historial</p>
-            <p className="text-sm text-muted-foreground">Los servicios completados aparecerán aquí</p>
+            <p className="font-medium">
+              {total === 0 && activeFilterCount === 0 ? "Sin historial de servicios" : "Ningún servicio coincide con los filtros"}
+            </p>
+            {activeFilterCount > 0 && (
+              <button onClick={clearFilters} className="text-sm text-primary hover:underline">Limpiar filtros</button>
+            )}
           </CardContent>
         </Card>
       ) : (
-        <div className="grid gap-3">
-          {tickets.map((t) => (
-            <Card key={t.id} className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => setSelected(selected?.id === t.id ? null : t)}>
-              <CardContent className="card-content-tight">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex gap-2 mb-1 flex-wrap">
-                      <span className={cn("text-xs px-2 py-0.5 rounded-full font-medium", statusColor[t.status])}>{statusLabel[t.status]}</span>
-                      <span className={cn("text-xs px-2 py-0.5 rounded-full font-medium", priorityColor[t.priority])}>{priorityLabel[t.priority]}</span>
-                    </div>
-                    <p className="font-semibold truncate">{t.title}</p>
-                    {t.branch && <p className="text-sm text-muted-foreground">{t.branch.name}{t.branch.city ? ` - ${t.branch.city}` : ""}</p>}
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Completado: {formatDate(t.closedAt ?? t.createdAt)}
-                      {t.technician && ` · ${t.technician.name}`}
-                    </p>
-                  </div>
-                  <Button variant="ghost" size="sm">
-                    {selected?.id === t.id ? "Ocultar" : "Detalle"}
-                  </Button>
-                </div>
-
-                {selected?.id === t.id && (
-                  <div className="mt-4 pt-4 border-t space-y-2 text-sm">
-                    {t.description && <p className="text-muted-foreground">{t.description}</p>}
-                    {t.equipment && <p><span className="font-medium">Equipo: </span>{t.equipment.name}</p>}
-                    {t.report && (
-                      <div className="space-y-1">
-                        <p className="font-medium">Tiene reporte técnico</p>
-                        <p className="text-xs text-muted-foreground">Reporte ID: {t.report.id}</p>
+        <>
+          <div className="grid gap-3">
+            {tickets.map((t) => (
+              <Link key={t.id} href={`/client/tickets/${t.id}`} className="group block">
+                <Card className="hover:shadow-md transition-shadow">
+                  <CardContent className="card-content-tight">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex gap-2 mb-1 flex-wrap">
+                          <span className={cn("text-xs px-2 py-0.5 rounded-full font-medium", statusColor[t.status])}>{statusLabel[t.status]}</span>
+                          <span className={cn("text-xs px-2 py-0.5 rounded-full font-medium", priorityColor[t.priority])}>{priorityLabel[t.priority]}</span>
+                        </div>
+                        <p className="font-semibold truncate">{t.title}</p>
+                        {t.branch && (
+                          <p className="text-sm text-muted-foreground">
+                            {t.branch.name}{t.branch.city ? ` · ${t.branch.city}` : ""}
+                          </p>
+                        )}
+                        {t.equipment && <p className="text-sm text-muted-foreground">{t.equipment.name}</p>}
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {formatDate(t.closedAt ?? t.scheduledAt ?? t.createdAt)}
+                          {t.technician && ` · ${t.technician.name}`}
+                        </p>
                       </div>
-                    )}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+                      <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-foreground transition-colors shrink-0 mt-1" />
+                    </div>
+                  </CardContent>
+                </Card>
+              </Link>
+            ))}
+          </div>
+          <Pagination page={page} total={total} limit={PAGE_SIZE} onPage={setPage} />
+        </>
       )}
     </div>
   );

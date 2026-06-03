@@ -1,0 +1,25 @@
+
+> maintenance-platform-frontend@0.1.0 dev
+> next dev
+
+   ▲ Next.js 15.1.3
+   - Local:        http://localhost:3000
+   - Network:      http://192.168.30.53:3000
+   - Environments: .env
+
+ ✓ Starting...
+ ✓ Ready in 1782ms
+ ✓ Compiled /middleware in 274ms (98 modules)
+ ○ Compiling /admin ...
+ ✓ Compiled /admin in 5.2s (806 modules)
+ GET /admin 200 in 6310ms
+ ✓ Compiled in 1120ms (404 modules)
+ ○ Compiling /_not-found ...
+ ✓ Compiled /_not-found in 684ms (796 modules)
+ GET /.well-known/appspecific/com.chrome.devtools.json 404 in 938ms
+ ○ Compiling /admin/policies ...
+ ✓ Compiled /admin/policies in 876ms (809 modules)
+ GET /admin/policies 200 in 988ms
+ ○ Compiling /admin/policies/new ...
+ ✓ Compiled /admin/policies/new in 667ms (850 modules)
+ GET /admin/policies/new 200 in 739ms

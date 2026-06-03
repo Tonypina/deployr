@@ -7,8 +7,11 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
-import { api } from "@/lib/api-client";
-import { Client, Branch, Equipment, Technician, Ticket } from "@/lib/types";
+import { Branch, Equipment } from "@/lib/types";
+import { useClients } from "@/lib/hooks/use-clients";
+import { useTechnicians } from "@/lib/hooks/use-technicians";
+import { getBranches, getEquipment } from "@/lib/services/clients";
+import { createTicket } from "@/lib/services/tickets";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -21,8 +24,8 @@ const schema = z.object({
   description: z.string().optional(),
   priority: z.enum(["LOW", "MEDIUM", "HIGH", "URGENT"]),
   clientId: z.string().min(1, "Selecciona un cliente"),
-  branchId: z.string().optional(),
-  equipmentId: z.string().optional(),
+  branchId: z.string().min(1, "Selecciona una sucursal"),
+  equipmentId: z.string().min(1, "Selecciona un equipo"),
   technicianId: z.string().optional(),
   scheduledAt: z.string().optional(),
 });
@@ -32,10 +35,11 @@ type FormValues = z.infer<typeof schema>;
 export default function NewTicketPage() {
   const router = useRouter();
   const [saving, setSaving] = useState(false);
-  const [clients, setClients] = useState<Client[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [equipments, setEquipments] = useState<Equipment[]>([]);
-  const [technicians, setTechnicians] = useState<Technician[]>([]);
+  const { clients } = useClients();
+  const { technicians: allTechnicians } = useTechnicians();
+  const technicians = allTechnicians.filter((t) => t.isActive);
 
   const {
     register,
@@ -52,16 +56,6 @@ export default function NewTicketPage() {
   const selectedBranchId = watch("branchId");
 
   useEffect(() => {
-    Promise.all([
-      api.get<Client[]>("/api/clients?limit=100"),
-      api.get<{ users: Technician[] }>("/api/users?role=TECHNICIAN&limit=100"),
-    ]).then(([cRes, tRes]) => {
-      setClients(cRes.data ?? []);
-      setTechnicians((tRes.data?.users ?? []).filter((t) => t.isActive));
-    }).catch((e) => toast({ variant: "destructive", title: "Error al cargar datos", description: e.message }));
-  }, []);
-
-  useEffect(() => {
     if (!selectedClientId) {
       setBranches([]);
       setEquipments([]);
@@ -69,9 +63,7 @@ export default function NewTicketPage() {
       setValue("equipmentId", "");
       return;
     }
-    api.get<Branch[]>(`/api/clients/${selectedClientId}/branches`)
-      .then((r) => setBranches(r.data ?? []))
-      .catch(() => setBranches([]));
+    getBranches(selectedClientId).then(setBranches).catch(() => setBranches([]));
     setValue("branchId", "");
     setValue("equipmentId", "");
   }, [selectedClientId, setValue]);
@@ -82,27 +74,25 @@ export default function NewTicketPage() {
       setValue("equipmentId", "");
       return;
     }
-    api.get<Equipment[]>(`/api/clients/${selectedClientId}/branches/${selectedBranchId}/equipment`)
-      .then((r) => setEquipments(r.data ?? []))
-      .catch(() => setEquipments([]));
+    getEquipment(selectedClientId!, selectedBranchId).then(setEquipments).catch(() => setEquipments([]));
     setValue("equipmentId", "");
   }, [selectedBranchId, selectedClientId, setValue]);
 
   async function onSubmit(data: FormValues) {
     setSaving(true);
     try {
-      const res = await api.post<Ticket>("/api/tickets", {
+      const ticket = await createTicket({
         title: data.title,
         description: data.description || undefined,
         priority: data.priority,
         clientId: data.clientId,
-        branchId: data.branchId || undefined,
-        equipmentId: data.equipmentId || undefined,
+        branchId: data.branchId,
+        equipmentId: data.equipmentId,
         technicianId: data.technicianId || undefined,
         scheduledAt: data.scheduledAt ? new Date(data.scheduledAt).toISOString() : undefined,
       });
       toast({ title: "Ticket creado exitosamente" });
-      router.replace(`/admin/tickets/${res.data!.id}`);
+      router.replace(`/admin/tickets/${ticket.id}`);
     } catch (e) {
       toast({ variant: "destructive", title: "Error al crear ticket", description: (e as Error).message });
       setSaving(false);
@@ -188,33 +178,45 @@ export default function NewTicketPage() {
               </div>
 
               <div className="grid gap-2">
-                <Label htmlFor="branchId">Sucursal</Label>
+                <Label htmlFor="branchId">Sucursal *</Label>
                 <select
                   id="branchId"
                   disabled={!selectedClientId || branches.length === 0}
-                  className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+                  className={cn(
+                    "flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50",
+                    errors.branchId && "border-destructive"
+                  )}
                   {...register("branchId")}
                 >
-                  <option value="">Sin sucursal</option>
+                  <option value="">
+                    {!selectedClientId ? "Selecciona un cliente primero" : branches.length === 0 ? "Sin sucursales" : "Seleccionar sucursal..."}
+                  </option>
                   {branches.map((b) => (
                     <option key={b.id} value={b.id}>{b.name}{b.city ? ` · ${b.city}` : ""}</option>
                   ))}
                 </select>
+                {errors.branchId && <p className="text-xs text-destructive">{errors.branchId.message}</p>}
               </div>
 
               <div className="grid gap-2">
-                <Label htmlFor="equipmentId">Equipo</Label>
+                <Label htmlFor="equipmentId">Equipo *</Label>
                 <select
                   id="equipmentId"
                   disabled={!selectedBranchId || equipments.length === 0}
-                  className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+                  className={cn(
+                    "flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50",
+                    errors.equipmentId && "border-destructive"
+                  )}
                   {...register("equipmentId")}
                 >
-                  <option value="">Sin equipo</option>
+                  <option value="">
+                    {!selectedBranchId ? "Selecciona una sucursal primero" : equipments.length === 0 ? "Sin equipos en esta sucursal" : "Seleccionar equipo..."}
+                  </option>
                   {equipments.map((e) => (
                     <option key={e.id} value={e.id}>{e.name}{e.brand ? ` · ${e.brand}` : ""}</option>
                   ))}
                 </select>
+                {errors.equipmentId && <p className="text-xs text-destructive">{errors.equipmentId.message}</p>}
               </div>
             </CardContent>
           </Card>

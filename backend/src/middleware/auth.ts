@@ -20,6 +20,7 @@ export function authenticate(req: AuthRequest, res: Response, next: NextFunction
 
 export function requireRoles(...roles: Role[]) {
   return (req: AuthRequest, res: Response, next: NextFunction): void => {
+
     if (!req.user || !roles.includes(req.user.role)) {
       res.status(403).json({ success: false, message: "Insufficient permissions" });
       return;
@@ -32,3 +33,5 @@ export const requireAdmin = requireRoles(Role.ADMIN);
 export const requireTechnician = requireRoles(Role.TECHNICIAN);
 export const requireClient = requireRoles(Role.CLIENT_USER);
 export const requireAdminOrTech = requireRoles(Role.ADMIN, Role.TECHNICIAN);
+export const requireAdminOrClient = requireRoles(Role.ADMIN, Role.CLIENT_USER);
+export const requireAdminOrTechOrClient = requireRoles(Role.ADMIN, Role.TECHNICIAN, Role.CLIENT_USER);

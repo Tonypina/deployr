@@ -1,13 +1,13 @@
 import type { Metadata } from "next";
-import { Inter, Saira_Condensed } from "next/font/google";
+import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/providers";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
-const saira = Saira_Condensed({
-  weight: ["700", "800", "900"],
+const jetbrainsMono = JetBrains_Mono({
+  weight: ["400", "700"],
   subsets: ["latin"],
-  variable: "--font-display",
+  variable: "--font-mono",
 });
 
 export const metadata: Metadata = {
@@ -18,7 +18,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="es" suppressHydrationWarning>
-      <body className={`${inter.variable} ${saira.variable}`}>
+      <body className={`${inter.variable} ${jetbrainsMono.variable}`}>
         <Providers>{children}</Providers>
       </body>
     </html>

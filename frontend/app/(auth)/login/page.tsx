@@ -7,9 +7,8 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import Link from "next/link";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
-import { api } from "@/lib/api-client";
+import { login } from "@/lib/services/auth";
 import { useAuthStore } from "@/lib/auth-store";
-import { AuthUser } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -38,9 +37,13 @@ export default function LoginPage() {
   async function onSubmit(values: FormValues) {
     setLoading(true);
     try {
-      const res = await api.post<{ token: string; user: AuthUser }>("/api/auth/login", values);
-      setAuth(res.data!.user, res.data!.token);
-      const role = res.data!.user.role;
+      const res = await login(values.email, values.password);
+      setAuth(res.user, res.token);
+      if (res.user.mustChangePassword) {
+        router.replace("/change-password");
+        return;
+      }
+      const role = res.user.role;
       if (role === "ADMIN") router.replace("/admin");
       else if (role === "TECHNICIAN") router.replace("/tech");
       else router.replace("/client");
@@ -58,8 +61,8 @@ export default function LoginPage() {
   return (
     <>
       <div className="px-6 pb-2">
-        <h2 className="text-xl font-bold text-slate-900">Bienvenido de vuelta</h2>
-        <p className="text-slate-500 text-sm mt-1">Ingresa tus credenciales para continuar</p>
+        <h2 className="text-xl font-bold text-on-surface">Bienvenido de vuelta</h2>
+        <p className="text-on-surface-variant text-sm mt-1">Ingresa tus credenciales para continuar</p>
       </div>
 
       <form onSubmit={handleSubmit(onSubmit)} noValidate>
@@ -97,7 +100,7 @@ export default function LoginPage() {
                 type="button"
                 tabIndex={-1}
                 onClick={() => setShowPassword((v) => !v)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-on-surface transition-colors"
                 aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
               >
                 {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -121,10 +124,10 @@ export default function LoginPage() {
             )}
           </Button>
 
-          <p className="text-center text-sm text-slate-500">
+          <p className="text-center text-sm text-on-surface-variant">
             ¿Eres una empresa nueva?{" "}
-            <Link href="/register" className="text-blue-600 font-medium hover:underline">
-              Crea tu cuenta
+            <Link href="/pricing" className="text-primary font-medium hover:underline">
+              Ver planes
             </Link>
           </p>
         </div>

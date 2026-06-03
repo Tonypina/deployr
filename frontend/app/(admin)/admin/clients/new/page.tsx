@@ -7,7 +7,9 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import Link from "next/link";
 import { ChevronLeft, Plus, Trash2 } from "lucide-react";
-import { api } from "@/lib/api-client";
+import { Controller } from "react-hook-form";
+import { AddressAutocomplete } from "@/components/ui/address-autocomplete";
+import { createClient, createBranch } from "@/lib/services/clients";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -46,7 +48,7 @@ export default function NewClientPage() {
     control,
     handleSubmit,
     formState: { errors },
-  } = useForm<FormValues>({
+  } = useForm<FormValues>({ // control already present via useFieldArray
     resolver: zodResolver(schema),
     defaultValues: { branches: [] },
   });
@@ -60,17 +62,15 @@ export default function NewClientPage() {
   async function onSubmit(data: FormValues) {
     setSaving(true);
     try {
-      const clientRes = await api.post<{ id: string }>("/api/clients", {
+      const { id: clientId } = await createClient({
         name: data.name,
         contactEmail: data.contactEmail,
         contactPhone: data.contactPhone || undefined,
         address: data.address || undefined,
       });
 
-      const clientId = clientRes.data!.id;
-
       for (const branch of data.branches) {
-        await api.post(`/api/clients/${clientId}/branches`, {
+        await createBranch(clientId, {
           name: branch.name,
           address: branch.address,
           city: branch.city || undefined,
@@ -136,11 +136,18 @@ export default function NewClientPage() {
               </div>
 
               <div className="sm:col-span-2 grid gap-2">
-                <Label htmlFor="address">Dirección</Label>
-                <Input
-                  id="address"
-                  placeholder="Av. Reforma 123, Col. Centro"
-                  {...register("address")}
+                <Label>Dirección</Label>
+                <Controller
+                  name="address"
+                  control={control}
+                  render={({ field }) => (
+                    <AddressAutocomplete
+                      value={field.value ?? ""}
+                      onChange={field.onChange}
+                      onBlur={field.onBlur}
+                      placeholder="Av. Reforma 123, Col. Centro"
+                    />
+                  )}
                 />
               </div>
             </CardContent>
@@ -199,10 +206,18 @@ export default function NewClientPage() {
 
                     <div className="sm:col-span-2 grid gap-2">
                       <Label>Dirección *</Label>
-                      <Input
-                        placeholder="Av. Principal 456"
-                        className={cn(errors.branches?.[idx]?.address && "border-destructive")}
-                        {...register(`branches.${idx}.address`)}
+                      <Controller
+                        name={`branches.${idx}.address`}
+                        control={control}
+                        render={({ field }) => (
+                          <AddressAutocomplete
+                            value={field.value ?? ""}
+                            onChange={field.onChange}
+                            onBlur={field.onBlur}
+                            placeholder="Av. Principal 456"
+                            className={cn(errors.branches?.[idx]?.address && "border-destructive")}
+                          />
+                        )}
                       />
                       {errors.branches?.[idx]?.address && (
                         <p className="text-xs text-destructive">{errors.branches[idx]?.address?.message}</p>

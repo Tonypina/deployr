@@ -4,12 +4,14 @@ import { prisma } from "../lib/prisma";
 import { authenticate, requireAdmin } from "../middleware/auth";
 import { AuthRequest } from "../types";
 
+import { clean, cleanOpt } from "../utils/sanitize";
+
 const router = Router();
 
 const productSchema = z.object({
-  name: z.string().min(2),
-  description: z.string().optional(),
-  category: z.string().optional(),
+  name:        z.string().min(2).transform(clean),
+  description: z.string().optional().transform(cleanOpt),
+  category:    z.string().optional().transform(cleanOpt),
 });
 
 router.use(authenticate, requireAdmin);

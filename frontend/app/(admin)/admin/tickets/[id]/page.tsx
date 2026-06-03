@@ -1,20 +1,35 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import Link from "next/link";
-import { ChevronLeft, UserCheck, X, CheckCheck } from "lucide-react";
-import { api } from "@/lib/api-client";
-import { Ticket, TicketReport, Technician } from "@/lib/types";
+import { ChevronLeft, UserCheck, X, CheckCheck, FileText, Upload, ThumbsUp, RotateCcw, Pencil, MapPin, ClipboardList } from "lucide-react";
+import { useTicket } from "@/lib/hooks/use-ticket";
+import { useTechnicians } from "@/lib/hooks/use-technicians";
+import { assignTicket, closeTicket as closeTicketService, cancelTicket as cancelTicketService, submitReview as submitReviewService, approveTicket as approveTicketService, reopenTicket as reopenTicketService } from "@/lib/services/tickets";
+import { updateReport as updateReportService } from "@/lib/services/reports";
+import { uploadPdf } from "@/lib/services/upload";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn, statusColor, statusLabel, priorityColor, priorityLabel, formatDate } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
+import { ImageLightbox } from "@/components/ui/image-lightbox";
+import { ReportTemplateField } from "@/lib/types";
+
+function parseImages(value: string): string[] {
+  if (!value) return [];
+  try {
+    const p = JSON.parse(value);
+    return Array.isArray(p) ? p : [value];
+  } catch {
+    return [value];
+  }
+}
 
 const assignSchema = z.object({
   technicianId: z.string().min(1, "Selecciona un técnico"),
@@ -25,49 +40,34 @@ type AssignForm = z.infer<typeof assignSchema>;
 
 export default function AdminTicketDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const router = useRouter();
-  const [ticket, setTicket] = useState<Ticket | null>(null);
-  const [report, setReport] = useState<TicketReport | null>(null);
-  const [technicians, setTechnicians] = useState<Technician[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { ticket, report, template, loading, setTicket, refetch } = useTicket(id);
+  const { technicians: allTechnicians } = useTechnicians();
+  const technicians = allTechnicians.filter((t) => t.isActive);
   const [acting, setActing] = useState(false);
+  const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
+  const [pdfFile, setPdfFile] = useState<File | null>(null);
+  const [uploadingPdf, setUploadingPdf] = useState(false);
+  const [reportEdits, setReportEdits] = useState<Record<string, string>>({});
+  const [updatingReport, setUpdatingReport] = useState(false);
 
   const { register, handleSubmit, formState: { errors } } = useForm<AssignForm>({
     resolver: zodResolver(assignSchema),
   });
 
   useEffect(() => {
-    async function load() {
-      try {
-        const [ticketRes, techRes] = await Promise.all([
-          api.get<Ticket>(`/api/tickets/${id}`),
-          api.get<{ users: Technician[] }>("/api/users?role=TECHNICIAN&limit=100"),
-        ]);
-        setTicket(ticketRes.data!);
-        setTechnicians((techRes.data?.users ?? []).filter((t) => t.isActive));
-        try {
-          const rRes = await api.get<TicketReport>(`/api/tickets/${id}/report`);
-          setReport(rRes.data!);
-        } catch {
-          // no report yet
-        }
-      } catch (e) {
-        toast({ variant: "destructive", title: "Error", description: (e as Error).message });
-      } finally {
-        setLoading(false);
-      }
+    if (ticket?.status === "REOPENED" && report) {
+      setReportEdits(report.responses);
     }
-    load();
-  }, [id]);
+  }, [ticket?.status, report]);
 
   async function onAssign(values: AssignForm) {
     setActing(true);
     try {
-      const res = await api.patch<Ticket>(`/api/tickets/${id}/assign`, {
+      const updated = await assignTicket(id, {
         technicianId: values.technicianId,
         scheduledAt: values.scheduledAt ? new Date(values.scheduledAt).toISOString() : undefined,
       });
-      setTicket(res.data!);
+      setTicket(updated);
       toast({ title: "Técnico asignado exitosamente" });
     } catch (e) {
       toast({ variant: "destructive", title: "Error", description: (e as Error).message });
@@ -76,11 +76,11 @@ export default function AdminTicketDetailPage() {
     }
   }
 
-  async function closeTicket() {
+  async function handleCloseTicket() {
     setActing(true);
     try {
-      const res = await api.patch<Ticket>(`/api/tickets/${id}/close`, {});
-      setTicket(res.data!);
+      const updated = await closeTicketService(id);
+      setTicket(updated);
       toast({ title: "Ticket cerrado" });
     } catch (e) {
       toast({ variant: "destructive", title: "Error", description: (e as Error).message });
@@ -89,12 +89,38 @@ export default function AdminTicketDetailPage() {
     }
   }
 
-  async function cancelTicket() {
+  async function handleReopenTicket() {
+    setActing(true);
+    try {
+      const updated = await reopenTicketService(id);
+      setTicket(updated);
+      toast({ title: "Ticket reabierto", description: "El técnico puede corregir el reporte" });
+    } catch (e) {
+      toast({ variant: "destructive", title: "Error", description: (e as Error).message });
+    } finally {
+      setActing(false);
+    }
+  }
+
+  async function handleUpdateReport() {
+    setUpdatingReport(true);
+    try {
+      await updateReportService(id, reportEdits);
+      await refetch();
+      toast({ title: "Reporte actualizado", description: "El ticket volvió a estado Completado" });
+    } catch (e) {
+      toast({ variant: "destructive", title: "Error", description: (e as Error).message });
+    } finally {
+      setUpdatingReport(false);
+    }
+  }
+
+  async function handleCancelTicket() {
     if (!confirm("¿Cancelar este ticket? Esta acción no se puede deshacer.")) return;
     setActing(true);
     try {
-      const res = await api.patch<Ticket>(`/api/tickets/${id}/cancel`, {});
-      setTicket(res.data!);
+      const updated = await cancelTicketService(id);
+      setTicket(updated);
       toast({ title: "Ticket cancelado" });
     } catch (e) {
       toast({ variant: "destructive", title: "Error", description: (e as Error).message });
@@ -103,12 +129,113 @@ export default function AdminTicketDetailPage() {
     }
   }
 
+  async function handleSubmitReview() {
+    if (!pdfFile) return;
+    setUploadingPdf(true);
+    try {
+      const url = await uploadPdf(pdfFile);
+      const updated = await submitReviewService(id, url);
+      setTicket(updated);
+      setPdfFile(null);
+      toast({ title: "Revisión enviada", description: "Se notificó al cliente para su aprobación" });
+    } catch (e) {
+      toast({ variant: "destructive", title: "Error", description: (e as Error).message });
+    } finally {
+      setUploadingPdf(false);
+    }
+  }
+
+  async function handleApprove() {
+    setActing(true);
+    try {
+      const updated = await approveTicketService(id);
+      setTicket(updated);
+      toast({ title: "Ticket aprobado", description: "El ticket continúa el ciclo normal" });
+    } catch (e) {
+      toast({ variant: "destructive", title: "Error", description: (e as Error).message });
+    } finally {
+      setActing(false);
+    }
+  }
+
+  function renderEditableField(field: ReportTemplateField, value: string, onChange: (v: string) => void) {
+    const baseClass = "flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+
+    if (field.type === "PHOTO") {
+      const images = parseImages(value);
+      if (!images.length) return <p className="text-sm text-muted-foreground">Sin imágenes</p>;
+      return (
+        <div className="flex flex-wrap gap-2">
+          {images.map((src, i) => (
+            <button key={i} type="button" onClick={() => setLightboxSrc(src)} className="shrink-0">
+              <img src={src} alt={`Imagen ${i + 1}`} className="h-20 w-20 rounded-md border border-border object-cover hover:opacity-80 transition-opacity cursor-zoom-in" />
+            </button>
+          ))}
+        </div>
+      );
+    }
+    if (field.type === "TEXTAREA") {
+      return (
+        <textarea
+          rows={3}
+          className={cn(baseClass, "resize-none")}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+        />
+      );
+    }
+    if (field.type === "DATE") {
+      return <Input type="date" value={value} onChange={(e) => onChange(e.target.value)} />;
+    }
+    if (field.type === "NUMBER") {
+      return <Input type="number" value={value} onChange={(e) => onChange(e.target.value)} />;
+    }
+    if (field.type === "MULTISELECT") {
+      const selected: string[] = value ? JSON.parse(value) : [];
+      const remaining = (field.options ?? []).filter((opt) => !selected.includes(opt));
+      return (
+        <div className="grid gap-2">
+          {remaining.length > 0 && (
+            <select
+              className={cn(baseClass, "cursor-pointer")}
+              value=""
+              onChange={(e) => {
+                if (!e.target.value) return;
+                onChange(JSON.stringify([...selected, e.target.value]));
+                e.currentTarget.value = "";
+              }}
+            >
+              <option value="" disabled>Seleccionar opción…</option>
+              {remaining.map((opt) => (
+                <option key={opt} value={opt}>{opt}</option>
+              ))}
+            </select>
+          )}
+          {selected.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {selected.map((opt) => (
+                <span key={opt} className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium bg-blue-100 text-blue-800">
+                  {opt}
+                  <button type="button" onClick={() => onChange(JSON.stringify(selected.filter((s) => s !== opt)))} className="hover:text-blue-900 transition-colors" aria-label={`Quitar ${opt}`}>
+                    <X className="h-3 w-3" />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      );
+    }
+    return <Input value={value} onChange={(e) => onChange(e.target.value)} />;
+  }
+
   if (loading) return <p className="text-sm text-muted-foreground p-6">Cargando...</p>;
   if (!ticket) return <p className="text-sm text-destructive p-6">Ticket no encontrado</p>;
 
-  const isTerminal = ticket.status === "CLOSED" || ticket.status === "CANCELLED";
+  const isTerminal = ["CLOSED", "CANCELLED", "REVIEW", "PENDING_APPROVAL"].includes(ticket.status);
 
   return (
+    <>
     <div className="page-stack max-w-2xl">
       <div className="flex items-center gap-2">
         <Button variant="ghost" size="icon" asChild>
@@ -116,7 +243,7 @@ export default function AdminTicketDetailPage() {
         </Button>
         <h1 className="text-2xl font-bold tracking-tight flex-1">Ticket</h1>
         {!isTerminal && (
-          <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={cancelTicket} disabled={acting}>
+          <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={handleCancelTicket} disabled={acting}>
             <X className="h-4 w-4 mr-1" />Cancelar
           </Button>
         )}
@@ -187,6 +314,36 @@ export default function AdminTicketDetailPage() {
         </Card>
       )}
 
+      {/* ON_SITE — technician has checked in */}
+      {ticket.status === "ON_SITE" && (
+        <Card className="border-cyan-200 bg-cyan-50">
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-3">
+              <MapPin className="h-5 w-5 text-cyan-700 shrink-0" />
+              <div>
+                <p className="font-semibold text-cyan-900">Técnico en sitio</p>
+                <p className="text-sm text-cyan-700 mt-0.5">El técnico llegó a la sucursal y registró su llegada. Iniciará el trabajo en breve.</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* PENDING_REPORT — technician finished job, filling report */}
+      {ticket.status === "PENDING_REPORT" && (
+        <Card className="border-violet-200 bg-violet-50">
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-3">
+              <ClipboardList className="h-5 w-5 text-violet-700 shrink-0" />
+              <div>
+                <p className="font-semibold text-violet-900">Reporte pendiente</p>
+                <p className="text-sm text-violet-700 mt-0.5">El técnico finalizó el trabajo y está completando el reporte de servicio.</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Close ticket — only when COMPLETED */}
       {ticket.status === "COMPLETED" && (
         <Card className="border-green-200 bg-green-50">
@@ -196,17 +353,115 @@ export default function AdminTicketDetailPage() {
                 <p className="font-semibold text-green-900">Ticket completado</p>
                 <p className="text-sm text-green-700 mt-0.5">El técnico envió el reporte. Revísalo y cierra el ticket.</p>
               </div>
-              <Button onClick={closeTicket} disabled={acting} className="bg-green-700 hover:bg-green-800 shrink-0">
-                <CheckCheck className="h-4 w-4 mr-1" />
-                {acting ? "Cerrando..." : "Cerrar ticket"}
+              <div className="flex gap-2 shrink-0">
+                <Button variant="outline" onClick={handleReopenTicket} disabled={acting} className="border-amber-300 text-amber-700 hover:bg-amber-50">
+                  <RotateCcw className="h-4 w-4 mr-1" />
+                  {acting ? "..." : "Reabrir"}
+                </Button>
+                <Button onClick={handleCloseTicket} disabled={acting} className="bg-green-700 hover:bg-green-800">
+                  <CheckCheck className="h-4 w-4 mr-1" />
+                  {acting ? "Cerrando..." : "Cerrar ticket"}
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* REOPENED — editable report form */}
+      {ticket.status === "REOPENED" && template && (
+        <Card className="border-rose-200 bg-rose-50">
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2 text-rose-900">
+              <Pencil className="h-4 w-4" />Ticket reabierto — Editar reporte
+            </CardTitle>
+            <p className="text-sm text-rose-700 mt-0.5">
+              Corrige el reporte y guarda los cambios para volver a marcarlo como completado.
+            </p>
+          </CardHeader>
+          <CardContent className="grid gap-4">
+            {template.fields.map((field) => (
+              <div key={field.id} className="grid gap-2">
+                <Label className="text-rose-900">
+                  {field.label}
+                  {field.required && <span className="text-destructive ml-1">*</span>}
+                </Label>
+                {renderEditableField(
+                  field,
+                  reportEdits[field.id] ?? "",
+                  (v) => setReportEdits((prev) => ({ ...prev, [field.id]: v }))
+                )}
+              </div>
+            ))}
+            <Button onClick={handleUpdateReport} disabled={updatingReport} className="bg-rose-600 hover:bg-rose-700 mt-2 w-fit">
+              <CheckCheck className="h-4 w-4 mr-1" />
+              {updatingReport ? "Guardando..." : "Guardar y completar"}
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* REVIEW — upload PDF document */}
+      {ticket.status === "REVIEW" && (
+        <Card className="border-purple-200 bg-purple-50">
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2 text-purple-900">
+              <FileText className="h-4 w-4" />Revisión de repuestos
+            </CardTitle>
+            <p className="text-sm text-purple-700 mt-0.5">
+              Este ticket fue generado para la instalación de repuestos. Sube el documento de revisión y envíalo al cliente para su aprobación.
+            </p>
+          </CardHeader>
+          <CardContent className="grid gap-3">
+            <div className="grid gap-1.5">
+              <Label className="text-sm">Documento de revisión (PDF)</Label>
+              <input
+                type="file"
+                accept="application/pdf"
+                onChange={(e) => setPdfFile(e.target.files?.[0] ?? null)}
+                className="text-sm file:mr-3 file:rounded-md file:border-0 file:bg-purple-100 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-purple-900 hover:file:bg-purple-200"
+              />
+              {pdfFile && <p className="text-xs text-muted-foreground">{pdfFile.name}</p>}
+            </div>
+            <Button
+              onClick={handleSubmitReview}
+              disabled={!pdfFile || uploadingPdf}
+              className="bg-purple-700 hover:bg-purple-800 w-fit"
+            >
+              <Upload className="h-4 w-4 mr-1" />
+              {uploadingPdf ? "Subiendo..." : "Enviar revisión al cliente"}
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* PENDING_APPROVAL — waiting for client to approve */}
+      {ticket.status === "PENDING_APPROVAL" && (
+        <Card className="border-amber-200 bg-amber-50">
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="font-semibold text-amber-900">Esperando aprobación del cliente</p>
+                <p className="text-sm text-amber-700 mt-0.5">
+                  Se envió el documento al cliente.{" "}
+                  {ticket.reviewDocument && (
+                    <a href={ticket.reviewDocument} target="_blank" rel="noopener noreferrer" className="underline">
+                      Ver documento
+                    </a>
+                  )}
+                </p>
+              </div>
+              <Button onClick={handleApprove} disabled={acting} className="bg-amber-600 hover:bg-amber-700 shrink-0">
+                <ThumbsUp className="h-4 w-4 mr-1" />
+                {acting ? "Aprobando..." : "Aprobar"}
               </Button>
             </div>
           </CardContent>
         </Card>
       )}
 
-      {/* Report */}
-      {report && (
+      {/* Report — read-only when not REOPENED */}
+      {report && ticket.status !== "REOPENED" && (
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Reporte del técnico</CardTitle>
@@ -220,11 +475,19 @@ export default function AdminTicketDetailPage() {
                 <div key={field.id}>
                   <p className="font-medium text-muted-foreground mb-1">{field.label}</p>
                   {field.type === "PHOTO" ? (
-                    <img src={value} alt={field.label} className="max-h-48 rounded-md border border-border object-contain" />
+                    <div className="flex flex-wrap gap-2">
+                      {parseImages(value).map((src, i) => (
+                        <button key={i} type="button" onClick={() => setLightboxSrc(src)} className="shrink-0">
+                          <img src={src} alt={`${field.label} ${i + 1}`} className="h-20 w-20 rounded-md border border-border object-cover hover:opacity-80 transition-opacity cursor-zoom-in" />
+                        </button>
+                      ))}
+                    </div>
                   ) : field.type === "MULTISELECT" ? (
-                    <ul className="list-disc list-inside space-y-0.5">
-                      {(JSON.parse(value) as string[]).map((v) => <li key={v}>{v}</li>)}
-                    </ul>
+                    <div className="flex flex-wrap gap-1.5">
+                      {(JSON.parse(value) as string[]).map((v) => (
+                        <span key={v} className="text-xs px-2 py-0.5 rounded-full font-medium bg-blue-100 text-blue-800">{v}</span>
+                      ))}
+                    </div>
                   ) : field.type === "DATE" ? (
                     <p>{formatDate(value)}</p>
                   ) : (
@@ -233,10 +496,30 @@ export default function AdminTicketDetailPage() {
                 </div>
               );
             })}
+            {report.requiresSpareParts !== undefined && (
+              <div className="border-t pt-3 mt-1">
+                <p className="font-medium text-sm mb-1">Repuestos requeridos</p>
+                {report.spareParts?.length ? (
+                  <div className="grid gap-1">
+                    {report.spareParts.map((sp) => (
+                      <div key={sp.id} className="flex justify-between text-sm">
+                        <span>{sp.inventoryItem.name}</span>
+                        <span className="text-muted-foreground">{sp.quantity} {sp.inventoryItem.unit ?? "uds"}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">No se requieren repuestos</p>
+                )}
+              </div>
+            )}
             <p className="text-xs text-muted-foreground pt-1">Enviado {formatDate(report.createdAt)}</p>
           </CardContent>
         </Card>
       )}
     </div>
+
+    {lightboxSrc && <ImageLightbox src={lightboxSrc} onClose={() => setLightboxSrc(null)} />}
+    </>
   );
 }

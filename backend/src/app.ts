@@ -14,13 +14,22 @@ import reportRoutes from "./routes/report.routes";
 import reportTemplateRoutes from "./routes/report-template.routes";
 import cronRoutes from "./routes/cron.routes";
 import inventoryRoutes from "./routes/inventory.routes";
-import visitRoutes from "./routes/visit.routes";
+import uploadRoutes from "./routes/upload.routes";
+import policyRoutes from "./routes/policy.routes";
+import companyRoutes from "./routes/company.routes";
+import mapsRoutes from "./routes/maps.routes";
+import billingRoutes from "./routes/billing.routes";
+import webhookRoutes from "./routes/webhooks.routes";
 
 const app = express();
 
 const allowedOrigins = (process.env.ALLOWED_ORIGINS ?? "http://localhost:3000").split(",");
 
 app.use(helmet());
+
+// Stripe webhooks MUST receive the raw request body — register before express.json()
+app.use("/api/webhooks", express.raw({ type: "application/json" }), webhookRoutes);
+
 app.use(
   cors({
     origin: (origin, cb) => {
@@ -44,9 +53,13 @@ app.use("/api/products", productRoutes);
 app.use("/api/tickets", ticketRoutes);
 app.use("/api/tickets/:ticketId/report", reportRoutes);
 app.use("/api/inventory", inventoryRoutes);
-app.use("/api/visits", visitRoutes);
 app.use("/api/report-templates", reportTemplateRoutes);
+app.use("/api/upload", uploadRoutes);
+app.use("/api/policies", policyRoutes);
 app.use("/api/cron", cronRoutes);
+app.use("/api/company", companyRoutes);
+app.use("/api/maps", mapsRoutes);
+app.use("/api/billing", billingRoutes);
 
 app.use(notFound);
 app.use(errorHandler);

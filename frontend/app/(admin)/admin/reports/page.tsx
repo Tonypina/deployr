@@ -1,25 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Plus, FileText, Star } from "lucide-react";
-import { api } from "@/lib/api-client";
-import { ReportTemplate } from "@/lib/types";
+import { Plus, FileText, Star, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { toast } from "@/hooks/use-toast";
+import { useReportTemplates } from "@/lib/hooks/use-report-templates";
 
 export default function ReportsPage() {
-  const [templates, setTemplates] = useState<ReportTemplate[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    api.get<ReportTemplate[]>("/api/report-templates")
-      .then((r) => setTemplates(r.data ?? []))
-      .catch((e) => toast({ variant: "destructive", title: "Error", description: e.message }))
-      .finally(() => setLoading(false));
-  }, []);
+  const { templates, loading } = useReportTemplates();
 
   return (
     <div className="page-stack">
@@ -63,8 +52,8 @@ export default function ReportsPage() {
                       {t._count?.fields ?? 0} campos · {t._count?.clients ?? 0} clientes
                     </p>
                   </div>
-                  <Button variant="outline" size="sm" asChild>
-                    <Link href={`/admin/reports/${t.id}`}>Editar</Link>
+                  <Button variant="ghost" size="icon" className="h-7 w-7" asChild>
+                    <Link href={`/admin/reports/${t.id}`}><Pencil className="h-3.5 w-3.5" /></Link>
                   </Button>
                 </div>
               </CardContent>
