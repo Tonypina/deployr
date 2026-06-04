@@ -1,4 +1,21 @@
 export type Role = "ADMIN" | "TECHNICIAN" | "CLIENT_USER";
+export type PlanTier = "INICIADOR" | "PROFESIONAL" | "EMPRESARIAL";
+export type SubscriptionStatus = "TRIALING" | "ACTIVE" | "PAST_DUE" | "CANCELLED" | "PAUSED";
+
+export interface Subscription {
+  id: string;
+  plan: PlanTier;
+  status: SubscriptionStatus;
+  stripeCustomerId?: string | null;
+  stripeSubscriptionId?: string | null;
+  trialEndsAt?: string | null;
+  currentPeriodStart?: string | null;
+  currentPeriodEnd?: string | null;
+  cancelledAt?: string | null;
+  currentMonthTickets?: number;
+  ticketLimit?: number | null;
+  overagePriceMxn?: number;
+}
 export type PolicyStatus = "ACTIVE" | "EXPIRED" | "CANCELLED";
 export type Recurrence = "MONTHLY" | "BIMONTHLY" | "QUARTERLY" | "SEMIANNUAL" | "ANNUAL";
 export type FieldType = "TEXT" | "TEXTAREA" | "DATE" | "NUMBER" | "PHOTO" | "MULTISELECT";
@@ -13,6 +30,7 @@ export interface AuthUser {
   companyId?: string;
   clientId?: string;
   mustChangePassword?: boolean;
+  onboardingCompleted?: boolean;
 }
 
 export interface Company {
@@ -27,6 +45,7 @@ export interface Company {
   regimenFiscal?: string;
   codigoPostal?: string;
   giro?: string;
+  onboardingStep?: number;
   createdAt: string;
 }
 
@@ -207,6 +226,23 @@ export interface Policy {
   equipment?: PolicyEquipmentItem[];
   tickets?: Pick<Ticket, "id" | "title" | "status" | "scheduledAt" | "priority">[];
   _count?: { tickets: number };
+}
+
+export interface Plan {
+  id: string;
+  tier: PlanTier;
+  name: string;
+  badge: string | null;
+  monthlyPrice: number | null;
+  annualPrice: number | null;
+  priceLabel: string | null;
+  description: string;
+  ticketMax: number | null;
+  techMax: number | null;
+  overagePriceMxn: number;
+  features: string[];
+  highlighted: boolean;
+  sortOrder: number;
 }
 
 export interface PaginatedResponse<T> {

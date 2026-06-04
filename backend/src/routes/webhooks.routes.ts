@@ -60,7 +60,7 @@ router.post("/stripe", async (req: Request, res: Response, next: NextFunction) =
         const customerId: string = session.customer;
 
         const { default: Stripe } = await import("stripe");
-        const stripeInstance = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: "2025-05-28.basil" });
+        const stripeInstance = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: "2026-05-27.dahlia" });
         const stripeSub = await stripeInstance.subscriptions.retrieve(subId);
         const priceId = stripeSub.items.data[0]?.price?.id ?? "";
         const plan = planFromPriceId(priceId);

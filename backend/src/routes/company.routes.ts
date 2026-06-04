@@ -58,4 +58,31 @@ router.put("/", async (req: AuthRequest, res: Response, next: NextFunction) => {
   }
 });
 
+// PATCH /api/company/onboarding-step
+router.patch("/onboarding-step", async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const { step } = z.object({ step: z.number().int().min(1).max(9) }).parse(req.body);
+    await prisma.company.update({
+      where: { id: req.user!.companyId! },
+      data: { onboardingStep: step },
+    });
+    res.json({ success: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// PATCH /api/company/complete-onboarding
+router.patch("/complete-onboarding", async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    await prisma.company.update({
+      where: { id: req.user!.companyId! },
+      data: { onboardingCompleted: true },
+    });
+    res.json({ success: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
 export default router;

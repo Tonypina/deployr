@@ -5,7 +5,7 @@ import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard, Users, Building2, Ticket, Package,
-  History, ClipboardList, LogOut, FileText, Plus, MapPin, FileCheck, Settings,
+  History, ClipboardList, LogOut, FileText, Plus, MapPin, FileCheck, Settings, CreditCard,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/lib/auth-store";
@@ -25,7 +25,8 @@ const adminNav: NavItem[] = [
   { label: "Pólizas",   href: "/admin/policies",       icon: FileCheck       },
   { label: "Reportes",   href: "/admin/reports",        icon: FileText        },
   { label: "Inventario", href: "/admin/inventory",      icon: Package         },
-  { label: "Mi Empresa", href: "/admin/company",        icon: Settings        },
+  { label: "Mi Empresa",    href: "/admin/company",  icon: Settings    },
+  { label: "Suscripción",  href: "/admin/billing",  icon: CreditCard  },
 ];
 
 const techNav: NavItem[] = [

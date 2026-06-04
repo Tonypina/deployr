@@ -5,7 +5,7 @@ if (!process.env.STRIPE_SECRET_KEY) {
 }
 
 export const stripe = process.env.STRIPE_SECRET_KEY
-  ? new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: "2025-05-28.basil" })
+  ? new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: "2026-05-27.dahlia" })
   : null;
 
 export type PlanTier = "INICIADOR" | "PROFESIONAL" | "EMPRESARIAL";
@@ -73,31 +73,28 @@ export async function createCheckoutSession({
   priceId,
   companyId,
   trialDays = 14,
-  successUrl,
-  cancelUrl,
+  returnUrl,
 }: {
   customerId: string;
   priceId: string;
   companyId: string;
   trialDays?: number;
-  successUrl: string;
-  cancelUrl: string;
+  returnUrl: string;
 }) {
   if (!stripe) throw new Error("Stripe not configured");
   return stripe.checkout.sessions.create({
     customer: customerId,
     mode: "subscription",
+    ui_mode: "embedded_page",
     line_items: [{ price: priceId, quantity: 1 }],
     subscription_data: {
       trial_period_days: trialDays,
       metadata: { companyId },
     },
-    success_url: successUrl,
-    cancel_url: cancelUrl,
+    return_url: returnUrl,
     metadata: { companyId },
     allow_promotion_codes: true,
     billing_address_collection: "required",
-    currency: "mxn",
   });
 }
 

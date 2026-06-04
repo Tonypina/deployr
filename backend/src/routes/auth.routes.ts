@@ -15,7 +15,14 @@ const registerSchema = z.object({
   adminName:     z.string().min(2).transform(clean),
   adminEmail:    z.string().email().transform(cleanEmail),
   adminPassword: z.string().min(8),
+  plan:          z.enum(["iniciador", "profesional", "empresarial"]).optional(),
 });
+
+const PLAN_MAP: Record<string, "INICIADOR" | "PROFESIONAL" | "EMPRESARIAL"> = {
+  iniciador:   "INICIADOR",
+  profesional: "PROFESIONAL",
+  empresarial: "EMPRESARIAL",
+};
 
 const loginSchema = z.object({
   email:    z.string().email().transform(cleanEmail),
@@ -53,12 +60,13 @@ router.post("/register", async (req: Request, res: Response, next: NextFunction)
       include: { users: true },
     });
 
-    // Create a 14-day trial subscription automatically
+    // Create a 14-day trial subscription with the selected plan
     const trialEndsAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
+    const plan = PLAN_MAP[body.plan ?? "iniciador"] ?? "INICIADOR";
     await prisma.subscription.create({
       data: {
         companyId: company.id,
-        plan: "INICIADOR",
+        plan,
         status: "TRIALING",
         trialEndsAt,
       },
@@ -74,7 +82,7 @@ router.post("/register", async (req: Request, res: Response, next: NextFunction)
 
     res.status(201).json({
       success: true,
-      data: { token, user: { id: admin.id, name: admin.name, email: admin.email, role: admin.role, mustChangePassword: false }, companyId: company.id },
+      data: { token, user: { id: admin.id, name: admin.name, email: admin.email, role: admin.role, mustChangePassword: false, onboardingCompleted: false }, companyId: company.id },
     });
   } catch (err) {
     next(err);
@@ -88,7 +96,7 @@ router.post("/login", async (req: Request, res: Response, next: NextFunction) =>
 
     const user = await prisma.user.findUnique({
       where: { email },
-      include: { company: { select: { id: true } }, client: { select: { id: true } } },
+      include: { company: { select: { id: true, onboardingCompleted: true } }, client: { select: { id: true } } },
     });
 
     if (!user || !user.isActive) {
@@ -122,6 +130,7 @@ router.post("/login", async (req: Request, res: Response, next: NextFunction) =>
           companyId: user.companyId,
           clientId: user.clientId,
           mustChangePassword: user.mustChangePassword,
+          onboardingCompleted: user.company?.onboardingCompleted ?? true,
         },
       },
     });
@@ -135,10 +144,14 @@ router.get("/me", authenticate, async (req: AuthRequest, res: Response, next: Ne
   try {
     const user = await prisma.user.findUnique({
       where: { id: req.user!.userId },
-      select: { id: true, name: true, email: true, role: true, companyId: true, clientId: true, phone: true, mustChangePassword: true },
+      select: {
+        id: true, name: true, email: true, role: true, companyId: true, clientId: true, phone: true, mustChangePassword: true,
+        company: { select: { onboardingCompleted: true } },
+      },
     });
     if (!user) throw new Error("NOT_FOUND");
-    res.json({ success: true, data: user });
+    const { company, ...rest } = user;
+    res.json({ success: true, data: { ...rest, onboardingCompleted: company?.onboardingCompleted ?? true } });
   } catch (err) {
     next(err);
   }

@@ -48,14 +48,14 @@ router.get("/subscription", requireAdmin, async (req: AuthRequest, res: Response
       },
     });
 
-    const config = PLAN_CONFIG[sub.plan as PlanTier];
+    const planRecord = await prisma.plan.findUnique({ where: { tier: sub.plan as PlanTier } });
     res.json({
       success: true,
       data: {
         ...sub,
         currentMonthTickets: ticketCount,
-        ticketLimit: config.ticketLimit,
-        overagePriceMxn: config.overagePriceMxn,
+        ticketLimit: planRecord?.ticketMax ?? null,
+        overagePriceMxn: planRecord?.overagePriceMxn ?? 0,
       },
     });
   } catch (err) {
@@ -112,11 +112,29 @@ router.post("/checkout", requireAdmin, async (req: AuthRequest, res: Response, n
       priceId,
       companyId: company.id,
       trialDays: company.subscription?.status === "TRIALING" ? 14 : 0,
-      successUrl: `${frontendUrl}/admin/billing?success=1`,
-      cancelUrl:  `${frontendUrl}/admin/billing?cancelled=1`,
+      returnUrl: `${frontendUrl}/admin/billing/success?session_id={CHECKOUT_SESSION_ID}`,
     });
 
-    res.json({ success: true, data: { url: session.url } });
+    res.json({ success: true, data: { clientSecret: session.client_secret } });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ── GET /api/billing/checkout-status?session_id=xxx ───────────────────────
+router.get("/checkout-status", requireAdmin, async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    if (!stripe) {
+      res.status(503).json({ success: false, message: "Stripe no está configurado" });
+      return;
+    }
+    const { session_id } = req.query as Record<string, string>;
+    if (!session_id) {
+      res.status(422).json({ success: false, message: "session_id requerido" });
+      return;
+    }
+    const session = await stripe.checkout.sessions.retrieve(session_id);
+    res.json({ success: true, data: { status: session.status, customerEmail: session.customer_details?.email } });
   } catch (err) {
     next(err);
   }

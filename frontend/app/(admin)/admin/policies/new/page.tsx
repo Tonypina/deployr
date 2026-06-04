@@ -135,7 +135,7 @@ export default function NewPolicyPage() {
         </div>
       </div>
 
-      <form onSubmit={handleSubmit(onSubmit)} className="grid gap-6 max-w-2xl">
+      <form onSubmit={handleSubmit(onSubmit)} className="grid gap-6">
         <Card>
           <CardHeader><CardTitle className="text-base">Información general</CardTitle></CardHeader>
           <CardContent className="grid gap-4">

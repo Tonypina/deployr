@@ -12,6 +12,7 @@ export async function register(payload: {
   adminName: string;
   adminEmail: string;
   adminPassword: string;
+  plan?: string;
 }) {
   const res = await api.post<{ token: string; user: AuthUser }>("/api/auth/register", payload);
   return res.data!;

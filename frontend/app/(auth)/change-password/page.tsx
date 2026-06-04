@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import Image from "next/image";
 import { Eye, EyeOff, Loader2, ShieldCheck } from "lucide-react";
 import { changePassword } from "@/lib/services/auth";
 import { useAuthStore } from "@/lib/auth-store";
@@ -77,7 +78,12 @@ export default function ChangePasswordPage() {
   if (isLoading || !user) return null;
 
   return (
-    <>
+    <div className="auth-shell">
+      <div className="auth-card w-full max-w-sm">
+        <div className="auth-header pb-6">
+          <Image src="/logo.png" alt="deployr" width={120} height={48} className="object-contain object-left" priority />
+        </div>
+
       <div className="px-6 pb-2">
         <div className="flex items-center gap-2 mb-1">
           <ShieldCheck className="h-5 w-5 text-primary" />
@@ -168,6 +174,7 @@ export default function ChangePasswordPage() {
           </Button>
         </div>
       </form>
-    </>
+      </div>
+    </div>
   );
 }

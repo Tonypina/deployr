@@ -18,6 +18,7 @@ import policyRoutes from "./routes/policy.routes";
 import companyRoutes from "./routes/company.routes";
 import mapsRoutes from "./routes/maps.routes";
 import billingRoutes from "./routes/billing.routes";
+import plansRoutes from "./routes/plans.routes";
 import webhookRoutes from "./routes/webhooks.routes";
 
 const app = express();
@@ -58,6 +59,7 @@ app.use("/api/policies", policyRoutes);
 app.use("/api/company", companyRoutes);
 app.use("/api/maps", mapsRoutes);
 app.use("/api/billing", billingRoutes);
+app.use("/api/plans", plansRoutes);
 
 app.use(notFound);
 app.use(errorHandler);
