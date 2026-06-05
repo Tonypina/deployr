@@ -1,5 +1,5 @@
 export type Role = "ADMIN" | "TECHNICIAN" | "CLIENT_USER";
-export type PlanTier = "INICIADOR" | "PROFESIONAL" | "EMPRESARIAL";
+export type PlanTier = "BASICO" | "INICIADOR" | "PROFESIONAL" | "EMPRESARIAL";
 export type SubscriptionStatus = "TRIALING" | "ACTIVE" | "PAST_DUE" | "CANCELLED" | "PAUSED";
 
 export interface Subscription {
@@ -73,6 +73,7 @@ export interface ReportTemplate {
 export interface Client {
   id: string;
   name: string;
+  giro?: string;
   contactEmail: string;
   contactPhone?: string;
   taxId?: string;
@@ -82,6 +83,7 @@ export interface Client {
   template?: ReportTemplate;
   createdAt: string;
   _count?: { branches: number; tickets: number };
+  equipmentCount?: number;
 }
 
 export interface Branch {
@@ -122,6 +124,7 @@ export interface Technician {
   name: string;
   email: string;
   phone?: string;
+  expertise?: string;
   isActive: boolean;
   mustChangePassword?: boolean;
 }

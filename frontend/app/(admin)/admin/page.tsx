@@ -1,6 +1,7 @@
 "use client";
 
-import { Ticket, Building2, AlertTriangle, FileCheck, Users } from "lucide-react";
+import { useState } from "react";
+import { Ticket, Building2, AlertTriangle, FileCheck, Users, ChevronLeft, ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { StatsCard } from "@/components/shared/stats-card";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,14 +12,23 @@ import { useClients } from "@/lib/hooks/use-clients";
 import { useInventory } from "@/lib/hooks/use-inventory";
 import { useUpcomingPolicyTickets } from "@/lib/hooks/use-policies";
 import { useTechnicians } from "@/lib/hooks/use-technicians";
+import { useTimeAnalytics } from "@/lib/hooks/use-time-analytics";
 import { Ticket as TicketType } from "@/lib/types";
 import { TicketsByClientChart } from "@/components/shared/tickets-by-client-chart";
+import { TimePerStateChart } from "@/components/shared/time-per-state-chart";
 
 const BUSY_STATUSES = new Set(["ASSIGNED", "ON_SITE", "IN_PROGRESS", "PENDING_REPORT"]);
 
+const CHART_SLIDES = [
+  { title: "Tiempo promedio por estado", subtitle: "Por cliente · clic para ver sucursales" },
+  { title: "Tickets por cliente", subtitle: `Top 3 clientes — ${new Date().getFullYear()}` },
+];
+
 export default function AdminDashboard() {
+  const [chartSlide, setChartSlide] = useState(0);
   const { tickets: allTickets, loading: ticketsLoading } = useTickets({ limit: 5, orderBy: "updatedAt" });
   const { tickets: activeTickets } = useTickets({ limit: 100 });
+  const { data: timeData, loading: timeLoading } = useTimeAnalytics();
   const { clients, total: clientsTotal, loading: clientsLoading } = useClients();
   const { items: inventory, total: inventoryTotal, loading: inventoryLoading } = useInventory();
   const { tickets: upcomingPolicyTickets, loading: policyTicketsLoading } = useUpcomingPolicyTickets();
@@ -123,20 +133,53 @@ export default function AdminDashboard() {
         </Card>
       )}
 
-      {/* Chart (2/3) + Last tickets (1/3) */}
+      {/* Chart carousel (2/3) + Last tickets (1/3) */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <Card className="lg:col-span-2">
           <CardHeader>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Ticket className="h-4 w-4 text-primary" />
-                <CardTitle>Tickets por cliente — {new Date().getFullYear()}</CardTitle>
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2 min-w-0">
+                <Ticket className="h-4 w-4 text-primary shrink-0" />
+                <div className="min-w-0">
+                  <CardTitle className="truncate">{CHART_SLIDES[chartSlide].title}</CardTitle>
+                  <p className="text-xs text-on-surface-variant mt-0.5">{CHART_SLIDES[chartSlide].subtitle}</p>
+                </div>
               </div>
-              <span className="font-label-caps text-on-surface-variant">Top 3 clientes</span>
+              <div className="flex items-center gap-1 shrink-0">
+                <Button
+                  variant="ghost" size="icon"
+                  className="h-7 w-7"
+                  onClick={() => setChartSlide((s) => (s - 1 + CHART_SLIDES.length) % CHART_SLIDES.length)}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <div className="flex gap-1 px-1">
+                  {CHART_SLIDES.map((_, i) => (
+                    <button
+                      key={i}
+                      onClick={() => setChartSlide(i)}
+                      className={cn(
+                        "h-1.5 rounded-full transition-all",
+                        i === chartSlide ? "w-4 bg-primary" : "w-1.5 bg-outline-variant"
+                      )}
+                    />
+                  ))}
+                </div>
+                <Button
+                  variant="ghost" size="icon"
+                  className="h-7 w-7"
+                  onClick={() => setChartSlide((s) => (s + 1) % CHART_SLIDES.length)}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
           </CardHeader>
           <CardContent>
-            <TicketsByClientChart />
+            {chartSlide === 1
+              ? <TicketsByClientChart />
+              : <TimePerStateChart data={timeData} loading={timeLoading} />
+            }
           </CardContent>
         </Card>
 

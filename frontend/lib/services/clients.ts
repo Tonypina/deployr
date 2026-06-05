@@ -18,8 +18,21 @@ export async function getClient<T = Client>(id: string) {
   return res.data!;
 }
 
+export interface ClientStats {
+  total: number;
+  branches: number;
+  equipment: number;
+  active: number;
+}
+
+export async function getClientStats(): Promise<ClientStats> {
+  const res = await api.get<ClientStats>("/api/clients/stats");
+  return res.data!;
+}
+
 export async function createClient(data: {
   name: string;
+  giro?: string;
   contactEmail: string;
   contactPhone?: string;
   address?: string;

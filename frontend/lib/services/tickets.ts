@@ -92,3 +92,21 @@ export async function reopenTicket(id: string) {
   const res = await api.patch<Ticket>(`/api/tickets/${id}/reopen`, {});
   return res.data!;
 }
+
+export interface BranchTimeAnalytics {
+  branchId: string;
+  branchName: string;
+  avgByStatus: Record<string, number>;
+}
+
+export interface ClientTimeAnalytics {
+  clientId: string;
+  clientName: string;
+  avgByStatus: Record<string, number>;
+  branches: BranchTimeAnalytics[];
+}
+
+export async function getTimeAnalytics(): Promise<ClientTimeAnalytics[]> {
+  const res = await api.get<ClientTimeAnalytics[]>("/api/tickets/time-analytics");
+  return res.data ?? [];
+}

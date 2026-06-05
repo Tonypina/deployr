@@ -11,6 +11,7 @@ const router = Router();
 
 const clientSchema = z.object({
   name:         z.string().min(2).transform(clean),
+  giro:         z.string().optional().nullable().transform(cleanOpt),
   contactEmail: z.string().email().transform(cleanEmail),
   contactPhone: z.string().optional().transform(cleanOpt),
   taxId:        z.string().optional().transform(cleanOpt),
@@ -31,6 +32,7 @@ const resetPasswordSchema = z.object({
 function encryptClient(data: z.infer<typeof clientSchema>) {
   return {
     name: data.name,
+    giro: data.giro ?? null,
     contactEmail: encrypt(data.contactEmail),
     contactPhone: encryptField(data.contactPhone),
     taxId: encryptField(data.taxId),
@@ -39,8 +41,9 @@ function encryptClient(data: z.infer<typeof clientSchema>) {
 }
 
 function decryptClient(client: {
-  id: string; name: string; contactEmail: string; contactPhone: string | null;
+  id: string; name: string; giro?: string | null; contactEmail: string; contactPhone: string | null;
   taxId: string | null; address: string | null; createdAt: Date; updatedAt: Date; companyId: string;
+  [key: string]: unknown;
 }) {
   return {
     ...client,
@@ -50,6 +53,27 @@ function decryptClient(client: {
     address: decryptField(client.address),
   };
 }
+
+// GET /api/clients/stats
+router.get("/stats", authenticate, requireAdmin, async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const companyId = req.user!.companyId!;
+    const ACTIVE = ["PENDING", "ASSIGNED", "ON_SITE", "IN_PROGRESS", "PENDING_REPORT"];
+
+    const [total, branches, equipment, active] = await prisma.$transaction([
+      prisma.client.count({ where: { companyId } }),
+      prisma.branch.count({ where: { client: { companyId } } }),
+      prisma.equipment.count({ where: { branch: { client: { companyId } } } }),
+      prisma.client.count({
+        where: { companyId, tickets: { some: { status: { in: ACTIVE as any } } } },
+      }),
+    ]);
+
+    res.json({ success: true, data: { total, branches, equipment, active } });
+  } catch (err) {
+    next(err);
+  }
+});
 
 // GET /api/clients
 router.get("/", authenticate, requireAdmin, async (req: AuthRequest, res: Response, next: NextFunction) => {
@@ -62,20 +86,27 @@ router.get("/", authenticate, requireAdmin, async (req: AuthRequest, res: Respon
       ...(search ? { name: { contains: search, mode: "insensitive" as const } } : {}),
     };
 
-    const [clients, total] = await Promise.all([
+    const [rawClients, total] = await Promise.all([
       prisma.client.findMany({
         where,
         orderBy: { createdAt: "desc" },
         take,
         skip,
-        include: { _count: { select: { branches: true, tickets: true } } },
+        include: {
+          _count: { select: { branches: true, tickets: true } },
+          branches: { select: { _count: { select: { equipment: true } } } },
+        },
       }),
       prisma.client.count({ where }),
     ]);
 
-    const decrypted = clients.map(decryptClient);
+    const clients = rawClients.map((c) => ({
+      ...decryptClient(c),
+      _count: { branches: c._count.branches, tickets: c._count.tickets },
+      equipmentCount: c.branches.reduce((sum, b) => sum + b._count.equipment, 0),
+    }));
 
-    res.json({ success: true, data: { clients: decrypted, total, page: Number(page), limit: take } });
+    res.json({ success: true, data: { clients, total, page: Number(page), limit: take } });
   } catch (err) {
     next(err);
   }

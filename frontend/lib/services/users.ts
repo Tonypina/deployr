@@ -14,6 +14,7 @@ export async function createTechnician(data: {
   email: string;
   password: string;
   phone?: string;
+  expertise?: string;
 }) {
   await api.post("/api/users", { ...data, role: "TECHNICIAN" });
 }
@@ -35,7 +36,13 @@ export async function createAdmin(data: {
   await api.post("/api/users", { ...data, role: "ADMIN" });
 }
 
-export async function updateUser(id: string, data: { isActive?: boolean }) {
+export async function updateUser(id: string, data: {
+  name?: string;
+  email?: string;
+  phone?: string | null;
+  expertise?: string | null;
+  isActive?: boolean;
+}) {
   await api.put(`/api/users/${id}`, data);
 }
 

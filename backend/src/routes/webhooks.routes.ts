@@ -6,15 +6,21 @@ type SubscriptionStatus = "TRIALING" | "ACTIVE" | "PAST_DUE" | "CANCELLED" | "PA
 
 const router = Router();
 
+function tsToDate(ts: number | null | undefined): Date | undefined {
+  return ts ? new Date(ts * 1000) : undefined;
+}
+
 // Map Stripe price IDs → PlanTier (read from env)
 function planFromPriceId(priceId: string): PlanTier {
   const map: Record<string, PlanTier> = {
+    [process.env.STRIPE_PRICE_BASICO_MONTHLY      ?? "__"]: "BASICO",
+    [process.env.STRIPE_PRICE_BASICO_ANNUAL       ?? "__"]: "BASICO",
     [process.env.STRIPE_PRICE_INICIADOR_MONTHLY   ?? "__"]: "INICIADOR",
     [process.env.STRIPE_PRICE_INICIADOR_ANNUAL    ?? "__"]: "INICIADOR",
     [process.env.STRIPE_PRICE_PROFESIONAL_MONTHLY ?? "__"]: "PROFESIONAL",
     [process.env.STRIPE_PRICE_PROFESIONAL_ANNUAL  ?? "__"]: "PROFESIONAL",
   };
-  return map[priceId] ?? "INICIADOR";
+  return map[priceId] ?? "BASICO";
 }
 
 function stripeStatusToLocal(status: string): SubscriptionStatus {
@@ -65,6 +71,10 @@ router.post("/stripe", async (req: Request, res: Response, next: NextFunction) =
         const priceId = stripeSub.items.data[0]?.price?.id ?? "";
         const plan = planFromPriceId(priceId);
 
+        const periodData = {
+          currentPeriodStart: tsToDate(stripeSub.current_period_start),
+          currentPeriodEnd:   tsToDate(stripeSub.current_period_end),
+        };
         await prisma.subscription.upsert({
           where: { companyId },
           create: {
@@ -73,18 +83,16 @@ router.post("/stripe", async (req: Request, res: Response, next: NextFunction) =
             stripeSubscriptionId: subId,
             stripePriceId:        priceId,
             plan,
-            status:              stripeStatusToLocal(stripeSub.status),
-            currentPeriodStart:  new Date(stripeSub.current_period_start * 1000),
-            currentPeriodEnd:    new Date(stripeSub.current_period_end   * 1000),
+            status: stripeStatusToLocal(stripeSub.status),
+            ...periodData,
           },
           update: {
             stripeCustomerId:     customerId,
             stripeSubscriptionId: subId,
             stripePriceId:        priceId,
             plan,
-            status:              stripeStatusToLocal(stripeSub.status),
-            currentPeriodStart:  new Date(stripeSub.current_period_start * 1000),
-            currentPeriodEnd:    new Date(stripeSub.current_period_end   * 1000),
+            status: stripeStatusToLocal(stripeSub.status),
+            ...periodData,
           },
         });
         break;
@@ -104,8 +112,8 @@ router.post("/stripe", async (req: Request, res: Response, next: NextFunction) =
             plan:               planFromPriceId(priceId),
             status:             stripeStatusToLocal(stripeSub.status),
             stripePriceId:      priceId,
-            currentPeriodStart: new Date(stripeSub.current_period_start * 1000),
-            currentPeriodEnd:   new Date(stripeSub.current_period_end   * 1000),
+            currentPeriodStart: tsToDate(stripeSub.current_period_start),
+            currentPeriodEnd:   tsToDate(stripeSub.current_period_end),
             cancelledAt:        stripeSub.canceled_at ? new Date(stripeSub.canceled_at * 1000) : null,
           },
         });

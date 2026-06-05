@@ -17,8 +17,9 @@ import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
 const PLAN_LABELS: Record<string, { name: string; price: string; color: string }> = {
-  iniciador:   { name: "Iniciador",   price: "$1,799 MXN/mes",       color: "text-on-surface-variant" },
-  profesional: { name: "Profesional", price: "$5,299 MXN/mes",       color: "text-primary"            },
+  basico:      { name: "Básico",      price: "$899 MXN/mes",          color: "text-on-surface-variant" },
+  iniciador:   { name: "Iniciador",   price: "$1,799 MXN/mes",        color: "text-on-surface-variant" },
+  profesional: { name: "Profesional", price: "$5,299 MXN/mes",        color: "text-primary"            },
   empresarial: { name: "Empresarial", price: "Precios personalizados", color: "text-secondary"          },
 };
 

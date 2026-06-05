@@ -108,6 +108,75 @@ router.get("/", async (req: AuthRequest, res: Response, next: NextFunction) => {
   }
 });
 
+// GET /api/tickets/time-analytics — avg hours per status per client (admin only)
+router.get("/time-analytics", requireAdmin, async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const { companyId } = req.user!;
+
+    const tickets = await prisma.ticket.findMany({
+      where: { companyId: companyId! },
+      select: {
+        clientId: true,
+        branchId: true,
+        client: { select: { id: true, name: true } },
+        branch: { select: { id: true, name: true } },
+        statusHistory: {
+          select: { status: true, changedAt: true },
+          orderBy: { changedAt: "asc" },
+        },
+      },
+    });
+
+    // clientId → { name, statusTimes, branches: branchId → { name, statusTimes } }
+    const acc: Record<string, {
+      name: string;
+      statusTimes: Record<string, number[]>;
+      branches: Record<string, { name: string; statusTimes: Record<string, number[]> }>;
+    }> = {};
+
+    for (const t of tickets) {
+      if (!t.clientId || !t.client || t.statusHistory.length < 2) continue;
+
+      if (!acc[t.clientId]) {
+        acc[t.clientId] = { name: t.client.name, statusTimes: {}, branches: {} };
+      }
+
+      // Time in state i = changedAt[i+1] - changedAt[i]  (exclude last/current state)
+      for (let i = 0; i < t.statusHistory.length - 1; i++) {
+        const start = new Date(t.statusHistory[i].changedAt).getTime();
+        const end   = new Date(t.statusHistory[i + 1].changedAt).getTime();
+        const hours = (end - start) / 3_600_000;
+        const status = t.statusHistory[i].status as string;
+
+        (acc[t.clientId].statusTimes[status] ??= []).push(hours);
+
+        if (t.branchId && t.branch) {
+          (acc[t.clientId].branches[t.branchId] ??= { name: t.branch.name, statusTimes: {} });
+          (acc[t.clientId].branches[t.branchId].statusTimes[status] ??= []).push(hours);
+        }
+      }
+    }
+
+    const avg = (arr: number[]) =>
+      Math.round((arr.reduce((s, v) => s + v, 0) / arr.length) * 10) / 10;
+
+    const data = Object.entries(acc).map(([clientId, c]) => ({
+      clientId,
+      clientName: c.name,
+      avgByStatus: Object.fromEntries(Object.entries(c.statusTimes).map(([s, v]) => [s, avg(v)])),
+      branches: Object.entries(c.branches).map(([branchId, b]) => ({
+        branchId,
+        branchName: b.name,
+        avgByStatus: Object.fromEntries(Object.entries(b.statusTimes).map(([s, v]) => [s, avg(v)])),
+      })),
+    }));
+
+    res.json({ success: true, data });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // GET /api/tickets/:id
 router.get("/:id", async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {

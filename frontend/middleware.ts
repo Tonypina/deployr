@@ -10,8 +10,12 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // Static assets — skip
-  if (pathname.startsWith("/_next") || pathname.startsWith("/favicon")) {
+  // Static assets and public files (images, fonts, etc.) — skip
+  if (
+    pathname.startsWith("/_next") ||
+    pathname.startsWith("/favicon") ||
+    /\.[\w]+$/.test(pathname)
+  ) {
     return NextResponse.next();
   }
 

@@ -89,7 +89,7 @@ export default function NewClientPage() {
   }
 
   return (
-    <div className="page-stack max-w-2xl">
+    <div className="page-stack">
       <div className="flex items-center gap-2">
         <Button variant="ghost" size="icon" asChild>
           <Link href="/admin/clients"><ChevronLeft className="h-4 w-4" /></Link>

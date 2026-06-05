@@ -9,17 +9,20 @@ import { clean, cleanEmail, cleanOpt } from "../utils/sanitize";
 const router = Router();
 
 const createUserSchema = z.object({
-  email:    z.string().email().transform(cleanEmail),
-  password: z.string().min(8),
-  name:     z.string().min(2).transform(clean),
-  role:     z.enum(["TECHNICIAN", "ADMIN"]),
-  phone:    z.string().optional().transform(cleanOpt),
+  email:     z.string().email().transform(cleanEmail),
+  password:  z.string().min(8),
+  name:      z.string().min(2).transform(clean),
+  role:      z.enum(["TECHNICIAN", "ADMIN"]),
+  phone:     z.string().optional().transform(cleanOpt),
+  expertise: z.string().optional().transform(cleanOpt),
 });
 
 const updateUserSchema = z.object({
-  name:     z.string().min(2).optional().transform(cleanOpt),
-  phone:    z.string().optional().transform(cleanOpt),
-  isActive: z.boolean().optional(),
+  name:      z.string().min(2).optional().transform(cleanOpt),
+  email:     z.string().email().optional().transform(v => v !== undefined ? cleanEmail(v) : v),
+  phone:     z.string().optional().nullable().transform(cleanOpt),
+  expertise: z.string().optional().nullable().transform(cleanOpt),
+  isActive:  z.boolean().optional(),
 });
 
 const resetPasswordSchema = z.object({
@@ -41,7 +44,7 @@ router.get("/", async (req: AuthRequest, res: Response, next: NextFunction) => {
           companyId: req.user!.companyId,
           ...(role ? { role: role as "ADMIN" | "TECHNICIAN" } : {}),
         },
-        select: { id: true, name: true, email: true, role: true, phone: true, isActive: true, mustChangePassword: true, createdAt: true },
+        select: { id: true, name: true, email: true, role: true, phone: true, expertise: true, isActive: true, mustChangePassword: true, createdAt: true },
         orderBy: { createdAt: "desc" },
         take,
         skip,
@@ -71,7 +74,7 @@ router.post("/", async (req: AuthRequest, res: Response, next: NextFunction) => 
         mustChangePassword: true,
         companyId: req.user!.companyId,
       },
-      select: { id: true, name: true, email: true, role: true, phone: true, isActive: true, mustChangePassword: true, createdAt: true },
+      select: { id: true, name: true, email: true, role: true, phone: true, expertise: true, isActive: true, mustChangePassword: true, createdAt: true },
     });
 
     res.status(201).json({ success: true, data: user });
@@ -90,10 +93,15 @@ router.put("/:id", async (req: AuthRequest, res: Response, next: NextFunction) =
     });
     if (!user) throw new Error("NOT_FOUND");
 
+    if (body.email && body.email !== user.email) {
+      const taken = await prisma.user.findUnique({ where: { email: body.email } });
+      if (taken) throw new Error("CONFLICT");
+    }
+
     const updated = await prisma.user.update({
       where: { id: req.params.id },
       data: body,
-      select: { id: true, name: true, email: true, role: true, phone: true, isActive: true, mustChangePassword: true },
+      select: { id: true, name: true, email: true, role: true, phone: true, expertise: true, isActive: true, mustChangePassword: true },
     });
 
     res.json({ success: true, data: updated });

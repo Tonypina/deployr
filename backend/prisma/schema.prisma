@@ -14,6 +14,7 @@ enum Role {
 }
 
 enum PlanTier {
+  BASICO
   INICIADOR
   PROFESIONAL
   EMPRESARIAL
@@ -149,6 +150,7 @@ model User {
   name      String
   role      Role
   phone     String?
+  expertise String?
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -182,6 +184,7 @@ model Product {
 model Client {
   id           String   @id @default(cuid())
   name         String
+  giro         String?
   // AES-256-GCM encrypted at rest
   contactEmail String
   contactPhone String?

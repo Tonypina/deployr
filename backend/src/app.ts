@@ -1,8 +1,10 @@
-import express from "express";
+import express, { Response, NextFunction } from "express";
 import cors from "cors";
 import helmet from "helmet";
 import morgan from "morgan";
 import { errorHandler, notFound } from "./middleware/error";
+import { authenticate, requireActiveSubscription } from "./middleware/auth";
+import { AuthRequest } from "./types";
 import authRoutes from "./routes/auth.routes";
 import userRoutes from "./routes/user.routes";
 import clientRoutes from "./routes/client.routes";
@@ -43,6 +45,14 @@ app.use(morgan(process.env.NODE_ENV === "production" ? "combined" : "dev"));
 app.use(express.json({ limit: "2mb" }));
 
 app.get("/api/health", (_req, res) => res.json({ ok: true, ts: new Date().toISOString() }));
+
+// Subscription gate: runs authenticate then checks for an active/trialing subscription.
+// Exempt: auth (login/register), billing (so they can pay), plans (public), webhooks, health.
+const SUBSCRIPTION_EXEMPT = ["/api/auth", "/api/billing", "/api/plans", "/api/webhooks", "/api/health"];
+app.use((req: AuthRequest, res: Response, next: NextFunction) => {
+  if (SUBSCRIPTION_EXEMPT.some((p) => req.path.startsWith(p))) return next();
+  authenticate(req, res, () => requireActiveSubscription(req, res, next));
+});
 
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);

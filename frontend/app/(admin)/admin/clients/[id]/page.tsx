@@ -517,7 +517,7 @@ export default function ClientDetailPage() {
   if (!client) return null;
 
   return (
-    <div className="page-stack max-w-3xl">
+    <div className="page-stack">
       {/* Header */}
       <div className="flex items-center gap-2">
         <Button variant="ghost" size="icon" onClick={() => router.back()}>

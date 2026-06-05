@@ -10,12 +10,14 @@ import { Subscription, PlanTier } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 const PLAN_LABEL: Record<PlanTier, string> = {
+  BASICO:      "Básico",
   INICIADOR:   "Iniciador",
   PROFESIONAL: "Profesional",
   EMPRESARIAL: "Empresarial",
 };
 
 const PLAN_PRICE: Record<PlanTier, string> = {
+  BASICO:      "$899 MXN/mes",
   INICIADOR:   "$1,799 MXN/mes",
   PROFESIONAL: "$5,299 MXN/mes",
   EMPRESARIAL: "Personalizado",
@@ -67,6 +69,8 @@ function SuccessPageInner() {
   }
 
   const plan = sub?.plan ?? "PROFESIONAL";
+  const isTrialing = sub?.status === "TRIALING";
+
   return (
     <div className="min-h-[80vh] flex items-center justify-center px-6 py-12">
       <div className="w-full max-w-lg space-y-8">
@@ -82,12 +86,14 @@ function SuccessPageInner() {
           </div>
 
           <div>
-            <p className="font-label-caps text-tertiary mb-2">Suscripción activada</p>
+            <p className="font-label-caps text-tertiary mb-2">Plan activado</p>
             <h1 className="text-3xl font-bold tracking-tight text-on-surface">
               ¡Bienvenido al Plan {PLAN_LABEL[plan as PlanTier]}!
             </h1>
             <p className="text-on-surface-variant text-sm mt-2 max-w-sm mx-auto leading-relaxed">
-              Tu suscripción está activa. Ahora tienes acceso completo a todas las funciones de tu plan.
+              {isTrialing
+                ? "Tu método de pago está registrado. No se realizará ningún cargo hasta que termine tu periodo de prueba."
+                : "Tu suscripción está activa. Ahora tienes acceso completo a todas las funciones de tu plan."}
             </p>
           </div>
         </div>
@@ -99,20 +105,26 @@ function SuccessPageInner() {
               <p className="font-semibold text-on-surface text-lg">Plan {PLAN_LABEL[plan as PlanTier]}</p>
               <p className="text-sm text-on-surface-variant mt-0.5">{PLAN_PRICE[plan as PlanTier]}</p>
             </div>
-            <span className="px-3 py-1 rounded-full bg-tertiary/15 text-tertiary text-xs font-bold">
-              ACTIVO
-            </span>
+            {isTrialing ? (
+              <span className="px-3 py-1 rounded-full bg-secondary/15 text-secondary text-xs font-bold">
+                PRUEBA ACTIVA
+              </span>
+            ) : (
+              <span className="px-3 py-1 rounded-full bg-tertiary/15 text-tertiary text-xs font-bold">
+                ACTIVO
+              </span>
+            )}
           </div>
 
           {(sub?.currentPeriodEnd || sub?.trialEndsAt) && (
             <div className="grid grid-cols-2 gap-3 border-t border-outline-variant/20 pt-4">
-              {sub.trialEndsAt && (
+              {isTrialing && sub?.trialEndsAt && (
                 <div>
                   <p className="text-xs text-on-surface-variant mb-0.5">Periodo de prueba hasta</p>
                   <p className="text-sm font-semibold">{formatDate(sub.trialEndsAt)}</p>
                 </div>
               )}
-              {sub.currentPeriodEnd && (
+              {sub?.currentPeriodEnd && (
                 <div>
                   <p className="text-xs text-on-surface-variant mb-0.5">Próxima renovación</p>
                   <p className="text-sm font-semibold">{formatDate(sub.currentPeriodEnd)}</p>
