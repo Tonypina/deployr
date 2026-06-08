@@ -16,7 +16,7 @@ const sairaCondensed = Saira_Condensed({
 });
 
 export const metadata: Metadata = {
-  title: "deployr",
+  title: "Deployr",
   description: "Dispatch. Done Better. — Service management platform.",
   icons: { icon: "/icon.png" },
 };

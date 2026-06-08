@@ -113,13 +113,22 @@ router.get("/", authenticate, requireAdmin, async (req: AuthRequest, res: Respon
 });
 
 // GET /api/clients/:id
-router.get("/:id", authenticate, requireAdmin, async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.get("/:id", authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
+    const user = req.user!;
+    const clientId = req.params.id;
+
+    // ADMIN can access any client in their company
+    // CLIENT_USER can only access their own client
+    if (user.role === "CLIENT_USER" && user.clientId !== clientId) {
+      throw new Error("FORBIDDEN");
+    }
+
     const client = await prisma.client.findFirst({
-      where: { id: req.params.id, companyId: req.user!.companyId! },
+      where: { id: clientId, companyId: user.companyId! },
       include: {
         branches: { include: { equipment: true } },
-        users: { select: { id: true, name: true, email: true, isActive: true, mustChangePassword: true } },
+        users: user.role === "ADMIN" ? { select: { id: true, name: true, email: true, isActive: true, mustChangePassword: true } } : undefined,
       },
     });
     if (!client) throw new Error("NOT_FOUND");

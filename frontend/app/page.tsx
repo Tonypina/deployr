@@ -29,10 +29,10 @@ const PRICES = {
 };
 
 const PROBLEM_ITEMS = [
-  { icon: <AlertCircle className="w-4 h-4 text-destructive" />, text: "Tickets lost in WhatsApp" },
-  { icon: <Phone className="w-4 h-4 text-destructive" />,       text: "Clients calling for updates" },
-  { icon: <CalendarX2 className="w-4 h-4 text-destructive" />,  text: "Missed preventive maintenance" },
-  { icon: <EyeOff className="w-4 h-4 text-destructive" />,      text: "No visibility into technician work" },
+  { icon: <AlertCircle className="w-4 h-4 text-destructive" />, text: "Tickets perdidos en WhatsApp" },
+  { icon: <Phone className="w-4 h-4 text-destructive" />,       text: "Clientes llamando por actualizaciones" },
+  { icon: <CalendarX2 className="w-4 h-4 text-destructive" />,  text: "Mantenimiento preventivo olvidado" },
+  { icon: <EyeOff className="w-4 h-4 text-destructive" />,      text: "Sin visibilidad del trabajo de los técnicos" },
 ];
 
 const FEATURES = [
@@ -40,47 +40,47 @@ const FEATURES = [
     icon: <Ticket className="w-6 h-6" />,
     iconClass: "text-primary bg-primary/10",
     checkClass: "text-primary",
-    title: "Service Tickets",
-    desc: "Master the ticket lifecycle from initial request to final closure with automated tracking.",
-    items: ["Automated status transitions", "Photo & video attachments", "Smart priority escalation"],
+    title: "Tickets de Servicio",
+    desc: "Domina el ciclo de vida del ticket desde la solicitud inicial hasta el cierre final con seguimiento automatizado.",
+    items: ["Transiciones de estado automatizadas", "Adjuntos de fotos y videos", "Escalación inteligente de prioridad"],
     delay: "0s",
   },
   {
     icon: <Wrench className="w-6 h-6" />,
     iconClass: "text-amber-accent bg-amber-accent/10",
     checkClass: "text-amber-accent",
-    title: "Tech Management",
-    desc: "Empower your technicians with specialized mobile tools and real-time dispatch updates.",
-    items: ["Focused technician app", "GPS location tracking", "Offline capability"],
+    title: "Gestión de Técnicos",
+    desc: "Potencia a tus técnicos con herramientas móviles especializadas y actualizaciones de despacho en tiempo real.",
+    items: ["App enfocada para técnicos", "Seguimiento de ubicación GPS", "Funcionamiento sin conexión"],
     delay: "0.1s",
   },
   {
     icon: <Shield className="w-6 h-6" />,
     iconClass: "text-tertiary bg-tertiary/10",
     checkClass: "text-tertiary",
-    title: "Client Portal",
-    desc: "Reduce administrative load with white-labeled self-service portals for your clients.",
-    items: ["Ticket history & status", "Direct appointment booking", "Report downloads (PDF)"],
+    title: "Portal de Clientes",
+    desc: "Reduce la carga administrativa con portales de autoservicio con marca blanca para tus clientes.",
+    items: ["Historial y estado de tickets", "Reserva directa de citas", "Descarga de reportes (PDF)"],
     delay: "0.2s",
   },
 ];
 
 const STEPS = [
-  { n: 1, title: "Create Ticket",    desc: "Log requests manually or let clients use the portal to trigger new maintenance tasks.", border: "border-primary",  text: "text-primary"  },
-  { n: 2, title: "Assign Tech",      desc: "Smart dispatch filters show you the nearest and most qualified technician for the job.", border: "border-primary",  text: "text-primary"  },
-  { n: 3, title: "Complete Report",  desc: "Technicians finish work and generate structured reports with photos instantly.",          border: "border-tertiary", text: "text-tertiary" },
+  { n: 1, title: "Crear Ticket",       desc: "Registra solicitudes manualmente o deja que los clientes usen el portal para activar nuevas tareas de mantenimiento.", border: "border-primary",  text: "text-primary"  },
+  { n: 2, title: "Asignar Técnico",    desc: "Los filtros de despacho inteligente te muestran al técnico más cercano y calificado para el trabajo.",                border: "border-primary",  text: "text-primary"  },
+  { n: 3, title: "Completar Reporte",  desc: "Los técnicos terminan el trabajo y generan reportes estructurados con fotos al instante.",                            border: "border-tertiary", text: "text-tertiary" },
 ];
 
 const STATS = [
-  { val: "40%",  label: "fewer missed tickets", accent: "" },
-  { val: "100%", label: "report compliance",    accent: "text-tertiary" },
-  { val: "3x",   label: "faster dispatch",      accent: "" },
+  { val: "40%",  label: "menos tickets perdidos",    accent: "" },
+  { val: "100%", label: "cumplimiento de reportes",  accent: "text-tertiary" },
+  { val: "3x",   label: "despacho más rápido",       accent: "" },
 ];
 
 const FOOTER_COLS = [
-  { title: "Platform", links: ["Documentation", "API Status", "Integrations"] },
-  { title: "Company",  links: ["Careers", "Contact Sales", "Media Kit"] },
-  { title: "Legal",    links: ["Privacy Policy", "Terms of Service"] },
+  { title: "Plataforma", links: ["Documentación", "Estado del API", "Integraciones"] },
+  { title: "Empresa",    links: ["Empleos", "Contactar Ventas", "Kit de Medios"] },
+  { title: "Legal",      links: ["Política de Privacidad", "Términos de Servicio"] },
 ];
 
 export default function LandingPage() {
@@ -177,7 +177,7 @@ export default function LandingPage() {
   const price = (k: keyof typeof PRICES) => fmt(PRICES[k][isAnnual ? "annual" : "monthly"]);
 
   return (
-    <div className="bg-[#131313] text-on-surface overflow-x-hidden min-h-screen">
+    <div className="text-on-surface overflow-x-hidden min-h-screen">
       <canvas
         ref={canvasRef}
         className="fixed inset-0 w-full h-full pointer-events-none -z-10 opacity-60"
@@ -190,13 +190,13 @@ export default function LandingPage() {
             <Image src="/logo.png" alt="deployr" width={120} height={32} className="h-8 w-auto" />
           </Link>
           <div className="hidden md:flex items-center gap-8">
-            <a href="#features"     className="text-sm text-primary font-bold border-b-2 border-primary pb-1 transition-transform active:scale-95">Features</a>
-            <a href="#how-it-works" className="text-sm text-on-surface-variant hover:text-on-surface transition-colors active:scale-95">How it Works</a>
-            <a href="#pricing"      className="text-sm text-on-surface-variant hover:text-on-surface transition-colors active:scale-95">Pricing</a>
+            <a href="#features"     className="text-sm text-primary font-bold border-b-2 border-primary pb-1 transition-transform active:scale-95">Características</a>
+            <a href="#how-it-works" className="text-sm text-on-surface-variant hover:text-on-surface transition-colors active:scale-95">Cómo Funciona</a>
+            <a href="#pricing"      className="text-sm text-on-surface-variant hover:text-on-surface transition-colors active:scale-95">Precios</a>
           </div>
           <div className="flex items-center gap-4">
-            <Link href="/login"    className="text-on-surface font-medium px-4 py-2 hover:opacity-80 transition-all active:scale-95">Login</Link>
-            <Link href="/register" className="bg-primary text-primary-foreground font-bold px-6 py-2 rounded shadow-md hover:opacity-90 transition-all active:scale-95">Get Started</Link>
+            <Link href="/login"    className="text-on-surface font-medium px-4 py-2 hover:opacity-80 transition-all active:scale-95">Iniciar Sesión</Link>
+            <Link href="/register" className="bg-primary text-primary-foreground font-bold px-6 py-2 rounded shadow-md hover:opacity-90 transition-all active:scale-95">Comenzar</Link>
           </div>
         </div>
       </nav>
@@ -209,20 +209,20 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto px-container-padding grid lg:grid-cols-2 gap-12 items-center">
           <div className="z-10 reveal active">
             <span className="font-label-caps text-amber-accent block mb-4 tracking-[0.2em]">
-              Field Operations Redefined
+              Operaciones de Campo Redefinidas
             </span>
             <h1 className="font-display text-6xl md:text-7xl font-bold leading-tight mb-6 text-on-surface">
-              Dispatch. <span className="text-primary">Done Better.</span>
+              Despacho. <span className="text-primary">Hecho Mejor.</span>
             </h1>
             <p className="text-on-surface-variant text-lg md:text-xl mb-10 max-w-lg">
-              The operations platform for field maintenance teams. Centralize scheduling, dispatch, and reporting in one place.
+              La plataforma de operaciones para equipos de mantenimiento en campo. Centraliza la programación, el despacho y los reportes en un solo lugar.
             </p>
             <div className="flex flex-wrap gap-4">
               <Link href="/register" className="bg-primary text-primary-foreground font-bold px-8 py-4 rounded-lg text-lg shadow-xl hover:opacity-90 active:scale-95 transition-all">
-                Start free trial
+                Comenzar prueba gratuita
               </Link>
               <button className="glass-card text-on-surface font-semibold px-8 py-4 rounded-lg text-lg hover:bg-white/5 active:scale-95 transition-all flex items-center gap-2">
-                <PlayCircle className="w-5 h-5" /> See how it works
+                <PlayCircle className="w-5 h-5" /> Ver cómo funciona
               </button>
             </div>
           </div>
@@ -239,8 +239,8 @@ export default function LandingPage() {
                   <Image src="/icon.png" alt="icon" width={24} height={24} className="w-6 h-6" />
                 </div>
               </div>
-              <div className="rounded-lg border border-outline-variant/30 flex items-center justify-center py-20 px-10 bg-surface-container">
-                <Image src="/logo.png" alt="deployr" width={240} height={80} className="grayscale opacity-40" />
+              <div className="rounded-lg border border-outline-variant/30 flex items-center justify-center bg-surface-container">
+                <Image src="/dash.png" alt="deployr" width={600} height={80} className="rounded-md" />
               </div>
             </div>
             <div className="absolute -bottom-6 -left-6 glass-card p-4 rounded-xl shadow-2xl hidden md:block animate-bounce-slow">
@@ -249,7 +249,7 @@ export default function LandingPage() {
                   <CheckCircle2 className="w-5 h-5" />
                 </div>
                 <div>
-                  <p className="font-label-caps text-[#8e909a]">TICKET RESOLVED</p>
+                  <p className="font-label-caps text-[#8e909a]">TICKET RESUELTO</p>
                   <p className="font-mono text-sm text-on-surface">ID: #MNT-90210</p>
                 </div>
               </div>
@@ -277,7 +277,7 @@ export default function LandingPage() {
       {/* ── Core Features ── */}
       <section id="features" className="py-24 max-w-7xl mx-auto px-container-padding scroll-mt-20">
         <div className="text-center mb-16 reveal">
-          <h2 className="font-display text-4xl font-semibold mb-4">Command Your Operations</h2>
+          <h2 className="font-display text-4xl font-semibold mb-4">Domina Tus Operaciones</h2>
           <div className="w-24 h-1 bg-primary mx-auto" />
         </div>
         <div className="grid md:grid-cols-3 gap-gutter">
@@ -309,8 +309,8 @@ export default function LandingPage() {
       <section id="how-it-works" className="py-24 bg-surface-container-lowest/40 backdrop-blur-sm scroll-mt-20">
         <div className="max-w-7xl mx-auto px-container-padding">
           <div className="text-center mb-20 reveal">
-            <h2 className="font-display text-4xl font-semibold mb-4">Streamlined Workflow</h2>
-            <p className="text-on-surface-variant">From chaos to clarity in three simple steps.</p>
+            <h2 className="font-display text-4xl font-semibold mb-4">Flujo de Trabajo Optimizado</h2>
+            <p className="text-on-surface-variant">Del caos a la claridad en tres simples pasos.</p>
           </div>
           <div className="relative reveal">
             <div className="hidden md:block absolute top-10 left-[10%] right-[10%] h-px bg-outline-variant" />
@@ -332,24 +332,24 @@ export default function LandingPage() {
       {/* ── Pricing ── */}
       <section id="pricing" className="py-24 max-w-7xl mx-auto px-container-padding scroll-mt-20">
         <div className="text-center mb-16 reveal">
-          <h2 className="font-display text-4xl font-semibold mb-8">Transparent Pricing</h2>
+          <h2 className="font-display text-4xl font-semibold mb-8">Precios Transparentes</h2>
           <div className="flex items-center justify-center gap-4 mb-4">
             <span className={cn("font-medium", !isAnnual ? "text-on-surface" : "text-on-surface-variant")}>
-              Monthly
+              Mensual
             </span>
             <button
               onClick={() => setIsAnnual(v => !v)}
               className={cn("w-14 h-7 rounded-full relative transition-colors focus:outline-none", isAnnual ? "bg-primary" : "bg-surface-container-highest")}
-              aria-label="Toggle billing period"
+              aria-label="Alternar período de facturación"
             >
               <span className={cn("absolute top-0.5 left-1 w-6 h-6 bg-white rounded-full shadow transition-transform duration-200", isAnnual ? "translate-x-6" : "translate-x-0")} />
             </button>
             <span className={cn("font-medium flex items-center gap-2", isAnnual ? "text-on-surface" : "text-on-surface-variant")}>
-              Annual <span className="bg-tertiary/20 text-tertiary text-xs px-2 py-1 rounded">-10%</span>
+              Anual <span className="bg-tertiary/20 text-tertiary text-xs px-2 py-1 rounded">-10%</span>
             </span>
           </div>
           {isAnnual && (
-            <p className="text-on-surface-variant text-sm">Pay annually and save 10% on your base plan.</p>
+            <p className="text-on-surface-variant text-sm">Paga anualmente y ahorra un 10% en tu plan base.</p>
           )}
         </div>
 
@@ -370,14 +370,14 @@ export default function LandingPage() {
               ))}
             </ul>
             <Link href="/register?plan=basico" className="w-full py-3 rounded-lg border border-primary text-primary font-bold hover:bg-primary hover:text-primary-foreground transition-all active:scale-95 text-center block">
-              Choose Plan
+              Elegir Plan
             </Link>
           </div>
 
           {/* Iniciador — featured */}
           <div className="glass-card p-8 rounded-2xl flex flex-col relative border-2 border-tertiary scale-105 shadow-2xl z-10 reveal">
             <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-tertiary text-on-tertiary font-bold text-xs px-4 py-1 rounded-full uppercase tracking-widest whitespace-nowrap">
-              Most Popular
+              Más Popular
             </div>
             <h3 className="font-display text-2xl font-semibold mb-2">Iniciador</h3>
             <p className="text-on-surface-variant text-sm mb-6">Para equipos pequeños (1–5 técnicos).</p>
@@ -393,7 +393,7 @@ export default function LandingPage() {
               ))}
             </ul>
             <Link href="/register?plan=iniciador" className="w-full py-4 rounded-lg bg-primary text-primary-foreground font-bold shadow-lg hover:opacity-90 transition-all active:scale-95 text-center block">
-              Start 14-Day Free Trial
+              Comenzar Prueba Gratuita de 14 Días
             </Link>
           </div>
 
@@ -413,7 +413,7 @@ export default function LandingPage() {
               ))}
             </ul>
             <Link href="/register?plan=profesional" className="w-full py-3 rounded-lg border border-primary text-primary font-bold hover:bg-primary hover:text-primary-foreground transition-all active:scale-95 text-center block">
-              Choose Plan
+              Elegir Plan
             </Link>
           </div>
         </div>
@@ -456,16 +456,16 @@ export default function LandingPage() {
       <section className="py-24 relative overflow-hidden reveal">
         <div className="absolute inset-0 bg-primary/5 -z-10" />
         <div className="max-w-4xl mx-auto px-container-padding text-center">
-          <h2 className="font-display text-5xl font-bold mb-6">Ready to run a tighter operation?</h2>
+          <h2 className="font-display text-5xl font-bold mb-6">¿Listo para gestionar una operación más eficiente?</h2>
           <p className="text-on-surface-variant text-xl mb-12">
-            Join 500+ field maintenance teams that trust deployr for their daily dispatch.
+            Únete a más de 500 equipos de mantenimiento en campo que confían en deployr para su despacho diario.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link href="/register" className="bg-primary text-primary-foreground font-bold px-10 py-5 rounded-xl text-xl shadow-2xl hover:scale-105 active:scale-95 transition-all">
-              Start your free trial
+              Comenzar tu prueba gratuita
             </Link>
             <button className="glass-card text-on-surface font-semibold px-10 py-5 rounded-xl text-xl hover:bg-white/5 active:scale-95 transition-all">
-              Book a demo
+              Reservar una demo
             </button>
           </div>
         </div>
@@ -477,7 +477,7 @@ export default function LandingPage() {
           <div className="col-span-2">
             <Image src="/logo.png" alt="deployr" width={120} height={32} className="h-8 mb-6" />
             <p className="text-on-surface-variant text-sm max-w-xs mb-6">
-              The modern platform for field operations. Helping maintenance teams deliver excellence every day.
+              La plataforma moderna para operaciones en campo. Ayudando a los equipos de mantenimiento a entregar excelencia cada día.
             </p>
           </div>
           {FOOTER_COLS.map(col => (
@@ -491,7 +491,7 @@ export default function LandingPage() {
             </div>
           ))}
           <div>
-            <h6 className="font-label-caps text-on-surface mb-6">Connect</h6>
+            <h6 className="font-label-caps text-on-surface mb-6">Conectar</h6>
             <div className="flex gap-4">
               <a href="#" className="w-10 h-10 rounded-full glass-card flex items-center justify-center hover:text-primary transition-colors">
                 <Share2 className="w-4 h-4" />
@@ -503,7 +503,7 @@ export default function LandingPage() {
           </div>
         </div>
         <div className="max-w-7xl mx-auto px-container-padding mt-20 pt-8 border-t border-outline-variant/30 text-center md:text-left">
-          <p className="text-on-surface-variant text-sm font-mono">© 2024 deployr Technologies Inc. All rights reserved.</p>
+          <p className="text-on-surface-variant text-sm font-mono">© 2024 deployr Technologies Inc. Todos los derechos reservados.</p>
         </div>
       </footer>
     </div>

@@ -11,7 +11,7 @@ import { useClientPortal } from "@/lib/hooks/use-client-portal";
 import { useAuthStore } from "@/lib/auth-store";
 import { Ticket } from "@/lib/types";
 
-const ACTIVE_STATUSES = new Set(["ASSIGNED", "IN_PROGRESS"]);
+const ACTIVE_STATUSES = new Set(["ASSIGNED", "IN_PROGRESS", "ON_SITE"]);
 const DONE_STATUSES   = new Set(["COMPLETED", "CLOSED", "CANCELLED", "EXPIRED", "REVIEW", "PENDING_APPROVAL"]);
 
 const AVATAR_COLORS = [
@@ -43,6 +43,10 @@ export default function ClientDashboard() {
   const { client, loading: clientLoading } = useClientPortal(user?.clientId);
 
   const activeVisits  = tickets.filter((t) => ACTIVE_STATUSES.has(t.status));
+  const upcomingVisits = tickets.filter((t) => {
+    if (ACTIVE_STATUSES.has(t.status) || DONE_STATUSES.has(t.status)) return false;
+    return t.scheduledAt && new Date(t.scheduledAt) > new Date();
+  }).slice(0, 5);
   const historyRows   = tickets.filter((t) => DONE_STATUSES.has(t.status)).slice(0, 8);
 
   // Flatten all equipment across branches
@@ -196,6 +200,64 @@ export default function ClientDashboard() {
             >
               Ver todas las sucursales
             </Link>
+          </div>
+        </div>
+
+        {/* Upcoming Visits — 8/12 */}
+        <div className="lg:col-span-12 glass-card rounded-xl overflow-hidden flex flex-col">
+          <div className="px-5 py-4 border-b border-white/5 bg-white/5 flex justify-between items-center">
+            <h2 className="text-sm font-semibold text-primary flex items-center gap-2">
+              <Truck className="h-4 w-4" />
+              Próximas visitas
+            </h2>
+          </div>
+
+          <div className="p-5 space-y-3 flex-1">
+            {loading ? (
+              <p className="text-sm text-muted-foreground">Cargando...</p>
+            ) : !upcomingVisits.length ? (
+              <div className="flex flex-col items-center justify-center py-10 gap-2">
+                <CheckCircle2 className="h-8 w-8 text-tertiary opacity-50" />
+                <p className="text-sm text-muted-foreground">Sin visitas programadas</p>
+              </div>
+            ) : (
+              upcomingVisits.map((t, i) => {
+                const avatar = AVATAR_COLORS[i % AVATAR_COLORS.length];
+                return (
+                  <Link
+                    key={t.id}
+                    href={`/client/tickets/${t.id}`}
+                    className="flex items-center gap-4 p-4 rounded-lg bg-surface-container-high/50 border border-white/5 hover:bg-surface-container-high transition-colors"
+                  >
+                    {/* Tech avatar */}
+                    <div className={cn(
+                      "w-10 h-10 rounded-lg flex items-center justify-center font-bold text-sm shrink-0",
+                      t.technician ? avatar.bg : "bg-surface-container-highest",
+                      t.technician ? avatar.text : "text-on-surface-variant"
+                    )}>
+                      {t.technician ? techInitials(t.technician.name) : <Wrench className="h-4 w-4" />}
+                    </div>
+
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start justify-between gap-2 mb-1">
+                        <p className="text-sm font-semibold text-on-surface truncate">{t.title}</p>
+                        <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-primary/10 text-primary shrink-0">
+                          Programada
+                        </span>
+                      </div>
+                      <p className="text-xs text-on-surface-variant truncate">
+                        {t.technician?.name ?? "Pendiente de asignación"}
+                        {t.branch && ` · ${t.branch.name}`}
+                        {t.equipment && ` · ${t.equipment.name}`}
+                        {t.scheduledAt && ` · ${formatDate(t.scheduledAt)}`}
+                      </p>
+                    </div>
+
+                    <ChevronRight className="h-4 w-4 text-on-surface-variant shrink-0" />
+                  </Link>
+                );
+              })
+            )}
           </div>
         </div>
 
