@@ -14,6 +14,7 @@ import {
   CheckCircle2,
   EyeOff,
   Globe,
+  Instagram,
   Phone,
   PlayCircle,
   Share2,
@@ -23,7 +24,7 @@ import {
 } from "lucide-react";
 
 const PRICES = {
-  basic:   { monthly: 899,  annual: 809  },
+  basic:   { monthly: 699,  annual: 629  },
   starter: { monthly: 1799, annual: 1619 },
   pro:     { monthly: 5299, annual: 4769 },
 };
@@ -78,9 +79,9 @@ const STATS = [
 ];
 
 const FOOTER_COLS = [
-  { title: "Plataforma", links: ["Documentación", "Estado del API", "Integraciones"] },
-  { title: "Empresa",    links: ["Empleos", "Contactar Ventas", "Kit de Medios"] },
-  { title: "Legal",      links: ["Política de Privacidad", "Términos de Servicio"] },
+  { title: "Plataforma", links: [{ label: "Guia de usuario", href: "#" }] },
+  { title: "Empresa",    links: [{ label: "Contactar Ventas", href: "#" }] },
+  { title: "Legal",      links: [{ label: "Política de Privacidad", href: "/privacy" }, { label: "Términos de Servicio", href: "/terms" }] },
 ];
 
 export default function LandingPage() {
@@ -485,7 +486,7 @@ export default function LandingPage() {
               <h6 className="font-label-caps text-on-surface mb-6">{col.title}</h6>
               <ul className="space-y-4 text-sm">
                 {col.links.map(l => (
-                  <li key={l}><a href="#" className="text-on-surface-variant hover:text-primary transition-colors">{l}</a></li>
+                  <li key={l.label}><Link href={l.href} className="text-on-surface-variant hover:text-primary transition-colors">{l.label}</Link></li>
                 ))}
               </ul>
             </div>
@@ -493,17 +494,17 @@ export default function LandingPage() {
           <div>
             <h6 className="font-label-caps text-on-surface mb-6">Conectar</h6>
             <div className="flex gap-4">
-              <a href="#" className="w-10 h-10 rounded-full glass-card flex items-center justify-center hover:text-primary transition-colors">
-                <Share2 className="w-4 h-4" />
+              <a href="https://www.instagram.com/deploy.r/" className="w-10 h-10 rounded-full glass-card flex items-center justify-center hover:text-primary transition-colors">
+                <Instagram className="w-4 h-4" />
               </a>
-              <a href="#" className="w-10 h-10 rounded-full glass-card flex items-center justify-center hover:text-primary transition-colors">
+              <a href="https://deployr.mx" className="w-10 h-10 rounded-full glass-card flex items-center justify-center hover:text-primary transition-colors">
                 <Globe className="w-4 h-4" />
               </a>
             </div>
           </div>
         </div>
         <div className="max-w-7xl mx-auto px-container-padding mt-20 pt-8 border-t border-outline-variant/30 text-center md:text-left">
-          <p className="text-on-surface-variant text-sm font-mono">© 2024 deployr Technologies Inc. Todos los derechos reservados.</p>
+          <p className="text-on-surface-variant text-sm font-mono">© 2026 Deployr. Todos los derechos reservados.</p>
         </div>
       </footer>
     </div>
