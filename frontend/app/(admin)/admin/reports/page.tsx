@@ -6,20 +6,38 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { useReportTemplates } from "@/lib/hooks/use-report-templates";
+import { PlanLimitBadge } from "@/components/shared/plan-limit-badge";
+import { usePlanFeatures } from "@/lib/hooks/use-plan-features";
 
 export default function ReportsPage() {
   const { templates, loading } = useReportTemplates();
+  const { features } = usePlanFeatures();
+
+  const customCount = templates.filter((t) => !t.isDefault).length;
+  const atTemplateLimit =
+    features?.templateMax !== null &&
+    features?.templateMax !== undefined &&
+    customCount >= features.templateMax;
 
   return (
     <div className="page-stack">
       <div className="page-header">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Plantillas de reporte</h1>
-          <p className="text-muted-foreground text-sm mt-0.5">{templates.length} plantillas</p>
+          <div className="flex items-center gap-2 mt-0.5">
+            <p className="text-muted-foreground text-sm">{templates.length} plantillas</p>
+            <PlanLimitBadge used={customCount} max={features?.templateMax} label="Personalizadas" />
+          </div>
         </div>
-        <Button asChild>
-          <Link href="/admin/reports/new"><Plus className="h-4 w-4 mr-1" />Nueva plantilla</Link>
-        </Button>
+        {atTemplateLimit ? (
+          <Button disabled>
+            <Plus className="h-4 w-4 mr-1" />Nueva plantilla
+          </Button>
+        ) : (
+          <Button asChild>
+            <Link href="/admin/reports/new"><Plus className="h-4 w-4 mr-1" />Nueva plantilla</Link>
+          </Button>
+        )}
       </div>
 
       {loading ? (

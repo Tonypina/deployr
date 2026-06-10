@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Subscription, PlanTier } from "@/lib/types";
+import { useAuthStore } from "@/lib/auth-store";
 import { getSubscription, createPortalSession } from "@/lib/services/billing";
 import { getPlans } from "@/lib/services/plans";
 import { BillingPlan, buildPlanByTier, mergePlan } from "@/lib/billing-config";
@@ -39,12 +40,17 @@ function formatDate(d: string | null | undefined) {
 
 function BillingPageInner() {
   const router = useRouter();
+  const { user } = useAuthStore();
   const [sub, setSub] = useState<Subscription | null>(null);
   const [plans, setPlans] = useState<BillingPlan[]>([]);
   const [planByTier, setPlanByTier] = useState<Record<PlanTier, BillingPlan> | null>(null);
   const [loading, setLoading] = useState(true);
   const [acting, setActing] = useState(false);
   const [annual, setAnnual] = useState(false);
+
+  useEffect(() => {
+    if (user && user.role !== "SUPER_ADMIN") { router.replace("/admin"); return; }
+  }, [user, router]);
 
   useEffect(() => {
     Promise.all([getSubscription(), getPlans()])

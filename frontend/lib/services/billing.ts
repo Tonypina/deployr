@@ -1,8 +1,13 @@
 import { api } from "@/lib/api-client";
-import { Subscription } from "@/lib/types";
+import { Subscription, PlanFeatures } from "@/lib/types";
 
 export async function getSubscription() {
   const res = await api.get<Subscription>("/api/billing/subscription");
+  return res.data!;
+}
+
+export async function getPlanFeatures() {
+  const res = await api.get<PlanFeatures>("/api/billing/plan-features");
   return res.data!;
 }
 

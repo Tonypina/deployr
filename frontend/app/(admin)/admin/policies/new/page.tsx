@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import { useAuthStore } from "@/lib/auth-store";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -36,9 +37,18 @@ const recurrenceOptions = [
   { value: "ANNUAL",     label: "Anual"      },
 ];
 
+const PLANS_WITH_POLICIES = new Set(["PROFESIONAL", "EMPRESARIAL"]);
+
 export default function NewPolicyPage() {
   const router = useRouter();
+  const { user } = useAuthStore();
   const { clients } = useClients();
+
+  useEffect(() => {
+    if (user && user.plan !== undefined && !PLANS_WITH_POLICIES.has(user.plan ?? "")) {
+      router.replace("/admin");
+    }
+  }, [user, router]);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [equipmentMap, setEquipmentMap] = useState<Record<string, Equipment[]>>({});
   const [selected, setSelected] = useState<{ equipmentId: string; branchId: string }[]>([]);

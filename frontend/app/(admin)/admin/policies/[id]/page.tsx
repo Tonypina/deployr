@@ -2,6 +2,7 @@
 
 import { use, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useAuthStore } from "@/lib/auth-store";
 import { ArrowLeft, Cpu, XCircle } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -11,19 +12,26 @@ import { getPolicy, cancelPolicy } from "@/lib/services/policies";
 import { Policy } from "@/lib/types";
 import { cn, policyStatusLabel, policyStatusColor, recurrenceLabel, statusLabel, statusColor, formatDate } from "@/lib/utils";
 
+const PLANS_WITH_POLICIES = new Set(["PROFESIONAL", "EMPRESARIAL"]);
+
 export default function PolicyDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
+  const { user } = useAuthStore();
   const [policy, setPolicy] = useState<Policy | null>(null);
   const [loading, setLoading] = useState(true);
   const [cancelling, setCancelling] = useState(false);
 
   useEffect(() => {
+    if (user && user.plan !== undefined && !PLANS_WITH_POLICIES.has(user.plan ?? "")) {
+      router.replace("/admin");
+      return;
+    }
     getPolicy(id)
       .then(setPolicy)
       .catch(() => toast({ variant: "destructive", title: "Error", description: "No se pudo cargar la póliza" }))
       .finally(() => setLoading(false));
-  }, [id]);
+  }, [id, user, router]);
 
   async function handleCancel() {
     if (!confirm("¿Cancelar esta póliza? Los tickets pendientes quedarán cancelados.")) return;

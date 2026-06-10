@@ -93,7 +93,7 @@ export default function LandingPage() {
   useEffect(() => {
     if (isLoading) return;
     if (!user) return;
-    if (user.role === "ADMIN") router.replace("/admin");
+    if (user.role === "ADMIN" || user.role === "SUPER_ADMIN") router.replace("/admin");
     else if (user.role === "TECHNICIAN") router.replace("/tech");
     else router.replace("/client");
   }, [user, isLoading, router]);

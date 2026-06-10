@@ -4,11 +4,20 @@ import { prisma } from "../lib/prisma";
 import { authenticate, requireAdmin, requireAdminOrClient } from "../middleware/auth";
 import { AuthRequest, paginate } from "../types";
 import { Role, Recurrence, TicketStatus, Priority } from "@prisma/client";
+import { getPlanLimits } from "../utils/plan-limits";
 
 import { clean, cleanOpt } from "../utils/sanitize";
 
 const router = Router();
 router.use(authenticate);
+
+const isAdminRole = (role: string) => role === Role.ADMIN || role === Role.SUPER_ADMIN;
+
+async function assertPoliciesAllowed(companyId: string | undefined): Promise<void> {
+  if (!companyId) return;
+  const limits = await getPlanLimits(companyId);
+  if (limits && !limits.allowPolicies) throw new Error("PLAN_LIMIT");
+}
 
 const createSchema = z.object({
   name:         z.string().min(2).transform(clean),
@@ -56,7 +65,7 @@ router.get("/", async (req: AuthRequest, res: Response, next: NextFunction) => {
     const { take, skip } = paginate(Number(page), Number(limit));
 
     const where: Record<string, unknown> = {};
-    if (role === Role.ADMIN) where.companyId = companyId;
+    if (isAdminRole(role)) where.companyId = companyId;
     else if (role === Role.CLIENT_USER) where.clientId = clientId;
     else throw new Error("FORBIDDEN");
     if (search) where.name = { contains: search, mode: "insensitive" };
@@ -104,7 +113,7 @@ router.get("/upcoming-tickets", async (req: AuthRequest, res: Response, next: Ne
       scheduledAt: { gte: now, lte: horizon },
     };
 
-    if (role === Role.ADMIN) where.companyId = companyId;
+    if (isAdminRole(role)) where.companyId = companyId;
     else if (role === Role.CLIENT_USER) where.clientId = clientId;
 
     const tickets = await prisma.ticket.findMany({
@@ -148,7 +157,7 @@ router.get("/:id", requireAdminOrClient, async (req: AuthRequest, res: Response,
     });
 
     if (!policy) throw new Error("NOT_FOUND");
-    if (role === Role.ADMIN && policy.companyId !== companyId) throw new Error("FORBIDDEN");
+    if (isAdminRole(role) && policy.companyId !== companyId) throw new Error("FORBIDDEN");
     if (role === Role.CLIENT_USER && policy.clientId !== clientId) throw new Error("FORBIDDEN");
 
     res.json({ success: true, data: policy });
@@ -160,6 +169,7 @@ router.get("/:id", requireAdminOrClient, async (req: AuthRequest, res: Response,
 // POST /api/policies — admin only, generates tickets per equipment
 router.post("/", requireAdmin, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
+    await assertPoliciesAllowed(req.user!.companyId);
     const body = createSchema.parse(req.body);
     const { companyId } = req.user!;
 

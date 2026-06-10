@@ -6,6 +6,8 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Building2, Camera, Plus, KeyRound, UserX, UserCheck } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useAuthStore } from "@/lib/auth-store";
 import { Controller } from "react-hook-form";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -109,6 +111,8 @@ function ResetPasswordForm({ userId, onDone }: { userId: string; onDone: () => v
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function CompanyPage() {
+  const router = useRouter();
+  const { user } = useAuthStore();
   const [company, setCompany] = useState<Company | null>(null);
   const [admins, setAdmins]   = useState<Technician[]>([]);
   const [loading, setLoading] = useState(true);
@@ -148,6 +152,10 @@ export default function CompanyPage() {
       setLoading(false);
     }
   }
+
+  useEffect(() => {
+    if (user && user.role !== "SUPER_ADMIN") { router.replace("/admin"); return; }
+  }, [user, router]);
 
   useEffect(() => { load(); }, []);
 

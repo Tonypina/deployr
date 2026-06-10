@@ -5,6 +5,7 @@ import { prisma } from "../lib/prisma";
 import { authenticate, requireAdmin } from "../middleware/auth";
 import { AuthRequest, paginate } from "../types";
 import { encrypt, decrypt, encryptField, decryptField } from "../utils/encryption";
+import { getPlanLimits } from "../utils/plan-limits";
 import { clean, cleanEmail, cleanOpt } from "../utils/sanitize";
 
 const router = Router();
@@ -128,7 +129,7 @@ router.get("/:id", authenticate, async (req: AuthRequest, res: Response, next: N
       where: { id: clientId, companyId: user.companyId! },
       include: {
         branches: { include: { equipment: true } },
-        users: user.role === "ADMIN" ? { select: { id: true, name: true, email: true, isActive: true, mustChangePassword: true } } : undefined,
+        users: (user.role === "ADMIN" || user.role === "SUPER_ADMIN") ? { select: { id: true, name: true, email: true, isActive: true, mustChangePassword: true } } : undefined,
       },
     });
     if (!client) throw new Error("NOT_FOUND");
@@ -141,6 +142,12 @@ router.get("/:id", authenticate, async (req: AuthRequest, res: Response, next: N
 // POST /api/clients
 router.post("/", authenticate, requireAdmin, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
+    const limits = await getPlanLimits(req.user!.companyId!);
+    if (limits?.clientMax !== null && limits?.clientMax !== undefined) {
+      const count = await prisma.client.count({ where: { companyId: req.user!.companyId! } });
+      if (count >= limits.clientMax) throw new Error("PLAN_LIMIT");
+    }
+
     const body = clientSchema.parse(req.body);
     const client = await prisma.client.create({
       data: { ...encryptClient(body), companyId: req.user!.companyId! },

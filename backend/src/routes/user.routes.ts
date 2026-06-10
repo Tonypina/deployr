@@ -4,6 +4,8 @@ import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { authenticate, requireAdmin } from "../middleware/auth";
 import { AuthRequest, paginate } from "../types";
+import { Role } from "@prisma/client";
+import { getPlanLimits } from "../utils/plan-limits";
 import { clean, cleanEmail, cleanOpt } from "../utils/sanitize";
 
 const router = Router();
@@ -38,18 +40,23 @@ router.get("/", async (req: AuthRequest, res: Response, next: NextFunction) => {
     const { role, page = "1", limit = "20" } = req.query as Record<string, string>;
     const { take, skip } = paginate(Number(page), Number(limit));
 
+    // ADMIN callers cannot see SUPER_ADMIN users
+    const callerIsAdmin = req.user!.role === Role.ADMIN;
+    const roleFilter = role
+      ? { role: role as Role }
+      : callerIsAdmin
+        ? { role: { not: Role.SUPER_ADMIN } }
+        : {};
+
     const [users, total] = await prisma.$transaction([
       prisma.user.findMany({
-        where: {
-          companyId: req.user!.companyId,
-          ...(role ? { role: role as "ADMIN" | "TECHNICIAN" } : {}),
-        },
+        where: { companyId: req.user!.companyId, ...roleFilter },
         select: { id: true, name: true, email: true, role: true, phone: true, expertise: true, isActive: true, mustChangePassword: true, createdAt: true },
         orderBy: { createdAt: "desc" },
         take,
         skip,
       }),
-      prisma.user.count({ where: { companyId: req.user!.companyId, ...(role ? { role: role as "ADMIN" | "TECHNICIAN" } : {}) } }),
+      prisma.user.count({ where: { companyId: req.user!.companyId, ...roleFilter } }),
     ]);
 
     res.json({ success: true, data: { users, total, page: Number(page), limit: take } });
@@ -62,6 +69,19 @@ router.get("/", async (req: AuthRequest, res: Response, next: NextFunction) => {
 router.post("/", async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const body = createUserSchema.parse(req.body);
+
+    // Enforce plan limits for technicians and admins
+    const limits = req.user!.companyId ? await getPlanLimits(req.user!.companyId) : null;
+    if (limits) {
+      if (body.role === "TECHNICIAN" && limits.techMax !== null) {
+        const count = await prisma.user.count({ where: { companyId: req.user!.companyId!, role: "TECHNICIAN", isActive: true } });
+        if (count >= limits.techMax) throw new Error("PLAN_LIMIT");
+      }
+      if (body.role === "ADMIN" && limits.adminMax !== null) {
+        const count = await prisma.user.count({ where: { companyId: req.user!.companyId!, role: "ADMIN", isActive: true } });
+        if (count >= limits.adminMax) throw new Error("PLAN_LIMIT");
+      }
+    }
 
     const exists = await prisma.user.findUnique({ where: { email: body.email } });
     if (exists) throw new Error("CONFLICT");
@@ -92,6 +112,7 @@ router.put("/:id", async (req: AuthRequest, res: Response, next: NextFunction) =
       where: { id: req.params.id, companyId: req.user!.companyId },
     });
     if (!user) throw new Error("NOT_FOUND");
+    if (user.role === Role.SUPER_ADMIN && req.user!.role !== Role.SUPER_ADMIN) throw new Error("FORBIDDEN");
 
     if (body.email && body.email !== user.email) {
       const taken = await prisma.user.findUnique({ where: { email: body.email } });
@@ -119,6 +140,7 @@ router.put("/:id/password", async (req: AuthRequest, res: Response, next: NextFu
       where: { id: req.params.id, companyId: req.user!.companyId },
     });
     if (!user) throw new Error("NOT_FOUND");
+    if (user.role === Role.SUPER_ADMIN && req.user!.role !== Role.SUPER_ADMIN) throw new Error("FORBIDDEN");
 
     const hashed = await bcrypt.hash(password, 12);
     await prisma.user.update({
@@ -139,6 +161,7 @@ router.delete("/:id", async (req: AuthRequest, res: Response, next: NextFunction
       where: { id: req.params.id, companyId: req.user!.companyId },
     });
     if (!user) throw new Error("NOT_FOUND");
+    if (user.role === Role.SUPER_ADMIN && req.user!.role !== Role.SUPER_ADMIN) throw new Error("FORBIDDEN");
     if (user.id === req.user!.userId) {
       res.status(400).json({ success: false, message: "Cannot deactivate yourself" });
       return;

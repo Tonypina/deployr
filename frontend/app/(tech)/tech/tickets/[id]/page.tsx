@@ -15,7 +15,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn, statusColor, statusLabel, priorityColor, priorityLabel, formatDate } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
 import { ImageLightbox } from "@/components/ui/image-lightbox";
-import { ChevronLeft, Play, MapPin, CheckSquare, X, ImagePlus, Plus, Trash2 } from "lucide-react";
+import { ChevronLeft, Play, MapPin, CheckSquare, X, ImagePlus, Plus, Trash2, PencilLine, Check, Download } from "lucide-react";
 
 // ── PhotoField ────────────────────────────────────────────────────────────────
 
@@ -95,6 +95,237 @@ function PhotoField({
         </div>
       )}
     </div>
+  );
+}
+
+// ── SignatureField ─────────────────────────────────────────────────────────────
+
+function SignatureField({
+  value,
+  onChange,
+  onRegisterFile,
+  onUnregisterFile,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  onRegisterFile: (objectUrl: string, file: File) => void;
+  onUnregisterFile: (objectUrl: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [hasDrawn, setHasDrawn] = useState(false);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const isDrawing = useRef(false);
+  const currentSig = parseImages(value)[0];
+
+  useEffect(() => {
+    if (!open) return;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = ""; };
+  }, [open]);
+
+  function getPos(canvas: HTMLCanvasElement, e: MouseEvent | Touch) {
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    return { x: (e.clientX - rect.left) * scaleX, y: (e.clientY - rect.top) * scaleY };
+  }
+
+  useEffect(() => {
+    if (!open) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    function startDraw(e: MouseEvent) {
+      isDrawing.current = true;
+      const ctx = canvas!.getContext("2d")!;
+      const pos = getPos(canvas!, e);
+      ctx.beginPath();
+      ctx.moveTo(pos.x, pos.y);
+    }
+    function draw(e: MouseEvent) {
+      if (!isDrawing.current) return;
+      const ctx = canvas!.getContext("2d")!;
+      ctx.lineWidth = 2.5;
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      ctx.strokeStyle = "#1e293b";
+      const pos = getPos(canvas!, e);
+      ctx.lineTo(pos.x, pos.y);
+      ctx.stroke();
+      setHasDrawn(true);
+    }
+    function endDraw() { isDrawing.current = false; }
+
+    function startDrawTouch(e: TouchEvent) {
+      e.preventDefault();
+      isDrawing.current = true;
+      const ctx = canvas!.getContext("2d")!;
+      const pos = getPos(canvas!, e.touches[0]);
+      ctx.beginPath();
+      ctx.moveTo(pos.x, pos.y);
+    }
+    function drawTouch(e: TouchEvent) {
+      if (!isDrawing.current) return;
+      e.preventDefault();
+      const ctx = canvas!.getContext("2d")!;
+      ctx.lineWidth = 2.5;
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      ctx.strokeStyle = "#1e293b";
+      const pos = getPos(canvas!, e.touches[0]);
+      ctx.lineTo(pos.x, pos.y);
+      ctx.stroke();
+      setHasDrawn(true);
+    }
+    function endDrawTouch() { isDrawing.current = false; }
+
+    canvas.addEventListener("mousedown", startDraw);
+    canvas.addEventListener("mousemove", draw);
+    canvas.addEventListener("mouseup", endDraw);
+    canvas.addEventListener("mouseleave", endDraw);
+    canvas.addEventListener("touchstart", startDrawTouch, { passive: false });
+    canvas.addEventListener("touchmove", drawTouch, { passive: false });
+    canvas.addEventListener("touchend", endDrawTouch);
+
+    return () => {
+      canvas.removeEventListener("mousedown", startDraw);
+      canvas.removeEventListener("mousemove", draw);
+      canvas.removeEventListener("mouseup", endDraw);
+      canvas.removeEventListener("mouseleave", endDraw);
+      canvas.removeEventListener("touchstart", startDrawTouch);
+      canvas.removeEventListener("touchmove", drawTouch);
+      canvas.removeEventListener("touchend", endDrawTouch);
+    };
+  }, [open]);
+
+  function clearCanvas() {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    canvas.getContext("2d")!.clearRect(0, 0, canvas.width, canvas.height);
+    setHasDrawn(false);
+  }
+
+  function confirm() {
+    const canvas = canvasRef.current;
+    if (!canvas || !hasDrawn) { setOpen(false); return; }
+
+    const old = parseImages(value)[0];
+    if (old?.startsWith("blob:")) {
+      onUnregisterFile(old);
+      URL.revokeObjectURL(old);
+    }
+
+    // Composite signature onto a white background before saving
+    const flat = document.createElement("canvas");
+    flat.width = canvas.width;
+    flat.height = canvas.height;
+    const flatCtx = flat.getContext("2d")!;
+    flatCtx.fillStyle = "#ffffff";
+    flatCtx.fillRect(0, 0, flat.width, flat.height);
+    flatCtx.drawImage(canvas, 0, 0);
+
+    flat.toBlob((blob) => {
+      if (!blob) return;
+      const file = new File([blob], "signature.png", { type: "image/png" });
+      const objectUrl = URL.createObjectURL(blob);
+      onRegisterFile(objectUrl, file);
+      onChange(JSON.stringify([objectUrl]));
+    }, "image/png");
+
+    setOpen(false);
+  }
+
+  function clearSignature() {
+    const old = parseImages(value)[0];
+    if (old?.startsWith("blob:")) {
+      onUnregisterFile(old);
+      URL.revokeObjectURL(old);
+    }
+    onChange("");
+  }
+
+  return (
+    <>
+      <div className="grid gap-2">
+        {currentSig ? (
+          <>
+            <img src={currentSig} alt="Firma" className="h-28 max-w-xs rounded-md border border-border object-contain bg-white" />
+            <div className="flex gap-2 flex-wrap">
+              <button
+                type="button"
+                onClick={() => { setHasDrawn(false); setOpen(true); }}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-input bg-background text-sm font-medium hover:bg-muted/50 transition-colors"
+              >
+                <PencilLine className="h-3.5 w-3.5" />Volver a firmar
+              </button>
+              <button
+                type="button"
+                onClick={clearSignature}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-input bg-background text-sm font-medium text-destructive hover:bg-muted/50 transition-colors"
+              >
+                <X className="h-3.5 w-3.5" />Eliminar firma
+              </button>
+            </div>
+          </>
+        ) : (
+          <button
+            type="button"
+            onClick={() => { setHasDrawn(false); setOpen(true); }}
+            className="inline-flex w-fit items-center gap-2 px-4 py-2 rounded-md border border-input bg-background text-sm font-medium hover:bg-muted/50 transition-colors"
+          >
+            <PencilLine className="h-4 w-4" />Firmar aquí
+          </button>
+        )}
+      </div>
+
+      {open && (
+        <div className="fixed inset-0 z-50 flex flex-col bg-white">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-border shrink-0">
+            <div>
+              <p className="font-semibold text-sm">Firma</p>
+              <p className="text-xs text-muted-foreground">Dibuja tu firma en el área de abajo</p>
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={clearCanvas}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-input bg-background text-sm font-medium hover:bg-muted/50 transition-colors"
+              >
+                <X className="h-3.5 w-3.5" />Limpiar
+              </button>
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                className="inline-flex items-center px-3 py-1.5 rounded-md border border-input bg-background text-sm font-medium hover:bg-muted/50 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={confirm}
+                disabled={!hasDrawn}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-primary text-primary-foreground text-sm font-medium disabled:opacity-40 hover:bg-primary/90 transition-colors"
+              >
+                <Check className="h-3.5 w-3.5" />Confirmar
+              </button>
+            </div>
+          </div>
+          <div className="flex-1 relative bg-slate-50">
+            <canvas
+              ref={canvasRef}
+              width={1200}
+              height={800}
+              className="absolute inset-0 w-full h-full touch-none cursor-crosshair"
+            />
+            {!hasDrawn && (
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none select-none">
+                <p className="text-muted-foreground text-sm">Dibuja aquí</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -192,7 +423,7 @@ export default function TechTicketDetailPage() {
     for (const field of template.fields) {
       if (field.required) {
         const val = responses[field.id] ?? "";
-        const empty = field.type === "PHOTO" ? !parseImages(val).length : !val.trim();
+        const empty = (field.type === "PHOTO" || field.type === "SIGNATURE") ? !parseImages(val).length : !val.trim();
         if (empty) {
           toast({ variant: "destructive", title: `El campo "${field.label}" es requerido` });
           return;
@@ -271,6 +502,16 @@ export default function TechTicketDetailPage() {
     if (field.type === "PHOTO") {
       return (
         <PhotoField
+          value={value}
+          onChange={onChange}
+          onRegisterFile={(url, file) => pendingFilesRef.current.set(url, file)}
+          onUnregisterFile={(url) => pendingFilesRef.current.delete(url)}
+        />
+      );
+    }
+    if (field.type === "SIGNATURE") {
+      return (
+        <SignatureField
           value={value}
           onChange={onChange}
           onRegisterFile={(url, file) => pendingFilesRef.current.set(url, file)}
@@ -380,6 +621,24 @@ export default function TechTicketDetailPage() {
           )}
         </CardContent>
       </Card>
+
+      {ticket.reportPdfUrl && (
+        <Card className="border-blue-200 bg-blue-50">
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="font-semibold text-blue-900">Orden de trabajo generada</p>
+                <p className="text-sm text-blue-700 mt-0.5">El documento de servicio está listo para descargar.</p>
+              </div>
+              <Button asChild className="bg-blue-700 hover:bg-blue-800 shrink-0">
+                <a href={ticket.reportPdfUrl} target="_blank" rel="noopener noreferrer">
+                  <Download className="h-4 w-4 mr-1" />Descargar PDF
+                </a>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Dynamic report form — when PENDING_REPORT (new) or REOPENED (edit existing) */}
       {((ticket.status === "PENDING_REPORT" && !report) || ticket.status === "REOPENED") && template && (
@@ -494,6 +753,15 @@ export default function TechTicketDetailPage() {
                         </button>
                       ))}
                     </div>
+                  ) : field.type === "SIGNATURE" ? (
+                    (() => {
+                      const src = parseImages(value)[0];
+                      return src ? (
+                        <button type="button" onClick={() => setLightboxSrc(src)} className="inline-block">
+                          <img src={src} alt="Firma" className="h-24 max-w-xs rounded-md border border-border object-contain bg-white hover:opacity-80 transition-opacity cursor-zoom-in" />
+                        </button>
+                      ) : null;
+                    })()
                   ) : field.type === "MULTISELECT" ? (
                     <div className="flex flex-wrap gap-1.5">
                       {(JSON.parse(value) as string[]).map((v) => (

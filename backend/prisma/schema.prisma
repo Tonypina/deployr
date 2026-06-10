@@ -9,6 +9,7 @@ datasource db {
 
 enum Role {
   ADMIN
+  SUPER_ADMIN
   TECHNICIAN
   CLIENT_USER
 }
@@ -35,6 +36,7 @@ enum FieldType {
   NUMBER
   PHOTO
   MULTISELECT
+  SIGNATURE
 }
 
 enum TicketStatus {
@@ -278,6 +280,7 @@ model Ticket {
   policy   Policy? @relation(fields: [policyId], references: [id], onDelete: SetNull)
 
   reviewDocument String?
+  reportPdfUrl   String?
   parentTicketId String?
   parentTicket   Ticket?  @relation("FollowUp", fields: [parentTicketId], references: [id])
   followUps      Ticket[] @relation("FollowUp")
@@ -298,6 +301,7 @@ model TicketStatusHistory {
 
 model TicketReport {
   id              String   @id @default(cuid())
+  folio           String?
   responses       Json
   techSignature   String?
   clientSignature String?
@@ -432,6 +436,11 @@ model Plan {
   description     String
   ticketMax       Int?
   techMax         Int?
+  adminMax        Int?
+  clientMax       Int?
+  inventoryMax    Int?
+  templateMax     Int?     // 0 = no custom templates; null = unlimited
+  allowPolicies   Boolean  @default(true)
   overagePriceMxn Float    @default(0)
   features        String[]
   highlighted     Boolean  @default(false)

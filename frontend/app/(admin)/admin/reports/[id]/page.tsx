@@ -28,7 +28,7 @@ const nameSchema = z.object({
 
 const fieldSchema = z.object({
   label: z.string().min(1, "Requerido"),
-  type: z.enum(["TEXT", "TEXTAREA", "DATE", "NUMBER", "PHOTO", "MULTISELECT"]),
+  type: z.enum(["TEXT", "TEXTAREA", "DATE", "NUMBER", "PHOTO", "MULTISELECT", "SIGNATURE"]),
   required: z.boolean(),
   order: z.coerce.number().int(),
 });
@@ -45,6 +45,7 @@ const fieldTypeLabel: Record<FieldType, string> = {
   NUMBER: "Número",
   PHOTO: "Foto",
   MULTISELECT: "Selección múltiple",
+  SIGNATURE: "Firma",
 };
 
 export default function ReportTemplateDetailPage() {
@@ -145,7 +146,7 @@ export default function ReportTemplateDetailPage() {
   if (!template) return null;
 
   return (
-    <div className="page-stack max-w-2xl">
+    <div className="page-stack">
       <div className="flex items-center gap-2">
         <Button variant="ghost" size="icon" asChild>
           <Link href="/admin/reports"><ChevronLeft className="h-4 w-4" /></Link>
@@ -349,6 +350,7 @@ function FieldFormInner({
           <option value="NUMBER">Número</option>
           <option value="PHOTO">Foto</option>
           <option value="MULTISELECT">Selección múltiple</option>
+          <option value="SIGNATURE">Firma</option>
         </select>
       </div>
 

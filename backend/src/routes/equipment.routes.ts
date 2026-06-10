@@ -1,7 +1,7 @@
 import { Router, Response, NextFunction } from "express";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
-import { authenticate, requireAdmin, requireAdminOrClient, requireAdminOrTechOrClient } from "../middleware/auth";
+import { authenticate, requireAdmin, requireAdminOrTechOrClient } from "../middleware/auth";
 import { AuthRequest } from "../types";
 
 import { clean, cleanOpt } from "../utils/sanitize";
@@ -62,7 +62,7 @@ router.get("/:id", authenticate, requireAdminOrTechOrClient, async (req: AuthReq
 });
 
 // POST
-router.post("/", authenticate, requireAdminOrClient, async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.post("/", authenticate, requireAdmin, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     if (req.user!.clientId && req.params.clientId !== req.user!.clientId) throw new Error("FORBIDDEN");
     const body = equipmentSchema.parse(req.body);

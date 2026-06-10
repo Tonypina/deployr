@@ -30,12 +30,13 @@ export function requireRoles(...roles: Role[]) {
   };
 }
 
-export const requireAdmin = requireRoles(Role.ADMIN);
+export const requireAdmin = requireRoles(Role.ADMIN, Role.SUPER_ADMIN);
+export const requireSuperAdmin = requireRoles(Role.SUPER_ADMIN);
 export const requireTechnician = requireRoles(Role.TECHNICIAN);
 export const requireClient = requireRoles(Role.CLIENT_USER);
-export const requireAdminOrTech = requireRoles(Role.ADMIN, Role.TECHNICIAN);
-export const requireAdminOrClient = requireRoles(Role.ADMIN, Role.CLIENT_USER);
-export const requireAdminOrTechOrClient = requireRoles(Role.ADMIN, Role.TECHNICIAN, Role.CLIENT_USER);
+export const requireAdminOrTech = requireRoles(Role.ADMIN, Role.SUPER_ADMIN, Role.TECHNICIAN);
+export const requireAdminOrClient = requireRoles(Role.ADMIN, Role.SUPER_ADMIN, Role.CLIENT_USER);
+export const requireAdminOrTechOrClient = requireRoles(Role.ADMIN, Role.SUPER_ADMIN, Role.TECHNICIAN, Role.CLIENT_USER);
 
 // Blocks access when a company's subscription has expired.
 // Skipped for CLIENT_USER (no companyId in JWT) and routes with no user context.

@@ -3,18 +3,30 @@
 import { useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Calendar, Cpu, MapPin, User, FileText, ThumbsUp } from "lucide-react";
+import { ChevronLeft, ThumbsUp, Download } from "lucide-react";
 import { useTicket } from "@/lib/hooks/use-ticket";
 import { approveTicket } from "@/lib/services/tickets";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn, statusColor, statusLabel, priorityColor, priorityLabel, formatDate } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
+import { ImageLightbox } from "@/components/ui/image-lightbox";
+
+function parseImages(value: string): string[] {
+  if (!value) return [];
+  try {
+    const p = JSON.parse(value);
+    return Array.isArray(p) ? p : [value];
+  } catch {
+    return [value];
+  }
+}
 
 export default function ClientTicketDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const { ticket, report, loading, setTicket } = useTicket(id);
+  const { ticket, report, template, loading, setTicket } = useTicket(id);
   const [approving, setApproving] = useState(false);
+  const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
 
   async function handleApprove() {
     setApproving(true);
@@ -29,44 +41,44 @@ export default function ClientTicketDetailPage() {
     }
   }
 
-  if (loading) {
-    return (
-      <div className="page-stack">
-        <p className="text-sm text-muted-foreground">Cargando...</p>
-      </div>
-    );
-  }
-
-  if (!ticket) {
-    return (
-      <div className="page-stack">
-        <p className="text-sm text-muted-foreground">Ticket no encontrado</p>
-      </div>
-    );
-  }
+  if (loading) return <p className="text-sm text-muted-foreground p-6">Cargando...</p>;
+  if (!ticket) return <p className="text-sm text-destructive p-6">Ticket no encontrado</p>;
 
   return (
+    <>
     <div className="page-stack">
-      <div className="page-header">
-        <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" className="h-7 w-7" asChild>
-            <Link href="/client"><ArrowLeft className="h-3.5 w-3.5" /></Link>
-          </Button>
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight truncate">{ticket.title}</h1>
-            <div className="flex items-center gap-2 mt-0.5">
-              <span className={cn("text-xs px-2 py-0.5 rounded-full font-medium", statusColor[ticket.status])}>
-                {statusLabel[ticket.status]}
-              </span>
-              <span className={cn("text-xs px-2 py-0.5 rounded-full font-medium", priorityColor[ticket.priority])}>
-                {priorityLabel[ticket.priority]}
-              </span>
-            </div>
-          </div>
-        </div>
+      <div className="flex items-center gap-2">
+        <Button variant="ghost" size="icon" asChild>
+          <Link href="/client"><ChevronLeft className="h-4 w-4" /></Link>
+        </Button>
+        <h1 className="text-2xl font-bold tracking-tight flex-1">Ticket</h1>
       </div>
 
-      {/* Approval panel */}
+      <Card>
+        <CardHeader>
+          <div className="flex gap-2 flex-wrap">
+            <span className={cn("text-xs px-2 py-0.5 rounded-full font-medium", statusColor[ticket.status])}>
+              {statusLabel[ticket.status]}
+            </span>
+            <span className={cn("text-xs px-2 py-0.5 rounded-full font-medium", priorityColor[ticket.priority])}>
+              {priorityLabel[ticket.priority]}
+            </span>
+          </div>
+          <CardTitle className="text-xl mt-1">{ticket.title}</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {ticket.description && <p className="text-sm text-muted-foreground">{ticket.description}</p>}
+          <div className="grid grid-cols-2 gap-3 text-sm">
+            {ticket.branch && <div><span className="text-muted-foreground">Sucursal:</span> <span className="font-medium">{ticket.branch.name}</span></div>}
+            {ticket.equipment && <div><span className="text-muted-foreground">Equipo:</span> <span className="font-medium">{ticket.equipment.name}</span></div>}
+            {ticket.technician && <div><span className="text-muted-foreground">Técnico:</span> <span className="font-medium">{ticket.technician.name}</span></div>}
+            {ticket.scheduledAt && <div><span className="text-muted-foreground">Programado:</span> <span className="font-medium">{formatDate(ticket.scheduledAt)}</span></div>}
+            {ticket.closedAt && <div><span className="text-muted-foreground">Cerrado:</span> <span className="font-medium">{formatDate(ticket.closedAt)}</span></div>}
+            <div><span className="text-muted-foreground">Creado:</span> <span className="font-medium">{formatDate(ticket.createdAt)}</span></div>
+          </div>
+        </CardContent>
+      </Card>
+
       {ticket.status === "PENDING_APPROVAL" && (
         <Card className="border-amber-200 bg-amber-50">
           <CardContent className="pt-6">
@@ -91,66 +103,71 @@ export default function ClientTicketDetailPage() {
         </Card>
       )}
 
-      <Card>
-        <CardHeader><CardTitle className="text-base">Detalles del servicio</CardTitle></CardHeader>
-        <CardContent className="grid gap-3">
-          {ticket.scheduledAt && (
-            <div className="flex items-center gap-2 text-sm">
-              <Calendar className="h-4 w-4 text-muted-foreground shrink-0" />
-              <span className="text-muted-foreground">Fecha programada:</span>
-              <span className="font-medium">{formatDate(ticket.scheduledAt)}</span>
+      {ticket.reportPdfUrl && (
+        <Card className="border-blue-200 bg-blue-50">
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="font-semibold text-blue-900">Orden de trabajo generada</p>
+                <p className="text-sm text-blue-700 mt-0.5">El documento de servicio está listo para descargar.</p>
+              </div>
+              <Button asChild className="bg-blue-700 hover:bg-blue-800 shrink-0">
+                <a href={ticket.reportPdfUrl} target="_blank" rel="noopener noreferrer">
+                  <Download className="h-4 w-4 mr-1" />Descargar PDF
+                </a>
+              </Button>
             </div>
-          )}
-          {ticket.branch && (
-            <div className="flex items-center gap-2 text-sm">
-              <MapPin className="h-4 w-4 text-muted-foreground shrink-0" />
-              <span className="text-muted-foreground">Sucursal:</span>
-              <span className="font-medium">{ticket.branch.name}</span>
-            </div>
-          )}
-          {ticket.equipment && (
-            <div className="flex items-center gap-2 text-sm">
-              <Cpu className="h-4 w-4 text-muted-foreground shrink-0" />
-              <span className="text-muted-foreground">Equipo:</span>
-              <span className="font-medium">{ticket.equipment.name}</span>
-            </div>
-          )}
-          {ticket.technician && (
-            <div className="flex items-center gap-2 text-sm">
-              <User className="h-4 w-4 text-muted-foreground shrink-0" />
-              <span className="text-muted-foreground">Técnico asignado:</span>
-              <span className="font-medium">{ticket.technician.name}</span>
-            </div>
-          )}
-          {ticket.policy && (
-            <div className="flex items-center gap-2 text-sm">
-              <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
-              <span className="text-muted-foreground">Póliza:</span>
-              <span className="font-medium">{ticket.policy.name}</span>
-            </div>
-          )}
-          {ticket.description && (
-            <div className="text-sm mt-1">
-              <p className="text-muted-foreground mb-1">Descripción</p>
-              <p>{ticket.description}</p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
 
       {report && (
         <Card>
-          <CardHeader><CardTitle className="text-base">Reporte de servicio</CardTitle></CardHeader>
-          <CardContent className="grid gap-3">
-            {Object.entries(report.responses).map(([key, value]) => (
-              <div key={key} className="text-sm">
-                <p className="text-muted-foreground text-xs mb-0.5">{key}</p>
-                <p className="font-medium">{String(value)}</p>
-              </div>
-            ))}
+          <CardHeader>
+            <CardTitle className="text-base">Reporte de servicio</CardTitle>
+            {report.template && <p className="text-xs text-muted-foreground">{report.template.name}</p>}
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm">
+            {template?.fields.map((field) => {
+              const value = report.responses[field.id];
+              if (!value) return null;
+              return (
+                <div key={field.id}>
+                  <p className="font-medium text-muted-foreground mb-1">{field.label}</p>
+                  {field.type === "PHOTO" ? (
+                    <div className="flex flex-wrap gap-2">
+                      {parseImages(value).map((src, i) => (
+                        <button key={i} type="button" onClick={() => setLightboxSrc(src)} className="shrink-0">
+                          <img src={src} alt={`${field.label} ${i + 1}`} className="h-20 w-20 rounded-md border border-border object-cover hover:opacity-80 transition-opacity cursor-zoom-in" />
+                        </button>
+                      ))}
+                    </div>
+                  ) : field.type === "SIGNATURE" ? (
+                    (() => {
+                      const src = parseImages(value)[0];
+                      return src ? (
+                        <button type="button" onClick={() => setLightboxSrc(src)} className="inline-block">
+                          <img src={src} alt="Firma" className="h-24 max-w-xs rounded-md border border-border object-contain bg-white hover:opacity-80 transition-opacity cursor-zoom-in" />
+                        </button>
+                      ) : null;
+                    })()
+                  ) : field.type === "MULTISELECT" ? (
+                    <div className="flex flex-wrap gap-1.5">
+                      {(JSON.parse(value) as string[]).map((v) => (
+                        <span key={v} className="text-xs px-2 py-0.5 rounded-full font-medium bg-blue-100 text-blue-800">{v}</span>
+                      ))}
+                    </div>
+                  ) : field.type === "DATE" ? (
+                    <p>{formatDate(value)}</p>
+                  ) : (
+                    <p>{value}</p>
+                  )}
+                </div>
+              );
+            })}
             {report.spareParts?.length ? (
-              <div className="border-t pt-2 mt-1">
-                <p className="text-sm font-medium mb-1">Repuestos requeridos</p>
+              <div className="border-t pt-3 mt-1">
+                <p className="font-medium text-sm mb-1">Repuestos requeridos</p>
                 <div className="grid gap-1">
                   {report.spareParts.map((sp) => (
                     <div key={sp.id} className="flex justify-between text-sm">
@@ -161,10 +178,13 @@ export default function ClientTicketDetailPage() {
                 </div>
               </div>
             ) : null}
-            <p className="text-xs text-muted-foreground mt-1">{formatDate(report.createdAt)}</p>
+            <p className="text-xs text-muted-foreground pt-1">Enviado {formatDate(report.createdAt)}</p>
           </CardContent>
         </Card>
       )}
     </div>
+
+    {lightboxSrc && <ImageLightbox src={lightboxSrc} onClose={() => setLightboxSrc(null)} />}
+    </>
   );
 }

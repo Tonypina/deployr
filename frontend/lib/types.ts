@@ -1,6 +1,17 @@
-export type Role = "ADMIN" | "TECHNICIAN" | "CLIENT_USER";
+export type Role = "ADMIN" | "SUPER_ADMIN" | "TECHNICIAN" | "CLIENT_USER";
 export type PlanTier = "BASICO" | "INICIADOR" | "PROFESIONAL" | "EMPRESARIAL";
 export type SubscriptionStatus = "TRIALING" | "ACTIVE" | "PAST_DUE" | "CANCELLED" | "PAUSED";
+
+export interface PlanFeatures {
+  plan: PlanTier;
+  ticketMax: number | null;
+  techMax: number | null;
+  adminMax: number | null;
+  clientMax: number | null;
+  inventoryMax: number | null;
+  templateMax: number | null;
+  allowPolicies: boolean;
+}
 
 export interface Subscription {
   id: string;
@@ -18,7 +29,7 @@ export interface Subscription {
 }
 export type PolicyStatus = "ACTIVE" | "EXPIRED" | "CANCELLED";
 export type Recurrence = "MONTHLY" | "BIMONTHLY" | "QUARTERLY" | "SEMIANNUAL" | "ANNUAL";
-export type FieldType = "TEXT" | "TEXTAREA" | "DATE" | "NUMBER" | "PHOTO" | "MULTISELECT";
+export type FieldType = "TEXT" | "TEXTAREA" | "DATE" | "NUMBER" | "PHOTO" | "MULTISELECT" | "SIGNATURE";
 export type TicketStatus = "PENDING" | "ASSIGNED" | "ON_SITE" | "IN_PROGRESS" | "PENDING_REPORT" | "COMPLETED" | "CLOSED" | "CANCELLED" | "EXPIRED" | "REVIEW" | "PENDING_APPROVAL" | "REOPENED";
 export type Priority = "LOW" | "MEDIUM" | "HIGH" | "URGENT";
 
@@ -27,6 +38,7 @@ export interface AuthUser {
   name: string;
   email: string;
   role: Role;
+  plan?: PlanTier | null;
   companyId?: string;
   clientId?: string;
   mustChangePassword?: boolean;
@@ -168,6 +180,7 @@ export interface Ticket {
   equipmentId?: string;
   technicianId?: string;
   reviewDocument?: string | null;
+  reportPdfUrl?: string | null;
   parentTicketId?: string | null;
   client?: { id: string; name: string };
   branch?: { id: string; name: string; city?: string };

@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Plus, FileCheck, ChevronRight, Search } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -10,11 +11,26 @@ import { Pagination } from "@/components/ui/pagination";
 import { cn, policyStatusLabel, policyStatusColor, recurrenceLabel, formatDate } from "@/lib/utils";
 import { usePolicies } from "@/lib/hooks/use-policies";
 import { useDebounce } from "@/lib/hooks/use-debounce";
+import { useAuthStore } from "@/lib/auth-store";
+
+const PLANS_WITH_POLICIES = new Set(["PROFESIONAL", "EMPRESARIAL"]);
 
 export default function PoliciesPage() {
+  const router = useRouter();
+  const { user } = useAuthStore();
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebounce(search, 300);
   const { policies, total, page, limit, loading, goToPage } = usePolicies({ search: debouncedSearch || undefined });
+
+  useEffect(() => {
+    if (user && user.plan !== undefined && !PLANS_WITH_POLICIES.has(user.plan ?? "")) {
+      router.replace("/admin");
+    }
+  }, [user, router]);
+
+  if (!user || (user.plan !== undefined && !PLANS_WITH_POLICIES.has(user.plan ?? ""))) {
+    return null;
+  }
 
   return (
     <div className="page-stack">

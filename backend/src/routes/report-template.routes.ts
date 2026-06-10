@@ -4,6 +4,7 @@ import { prisma } from "../lib/prisma";
 import { authenticate, requireAdmin, requireAdminOrTech } from "../middleware/auth";
 import { AuthRequest } from "../types";
 import { getEffectiveTemplate, getOrCreateDefaultTemplate } from "../utils/default-template";
+import { getPlanLimits } from "../utils/plan-limits";
 import { Role } from "@prisma/client";
 
 import { clean, cleanOpt } from "../utils/sanitize";
@@ -17,7 +18,7 @@ const templateSchema = z.object({
 
 const fieldSchema = z.object({
   label:    z.string().min(1).transform(clean),
-  type:     z.enum(["TEXT", "TEXTAREA", "DATE", "NUMBER", "PHOTO", "MULTISELECT"]),
+  type:     z.enum(["TEXT", "TEXTAREA", "DATE", "NUMBER", "PHOTO", "MULTISELECT", "SIGNATURE"]),
   required: z.boolean().default(false),
   order:    z.number().int().default(0),
   options:  z.array(z.string()).default([]).transform(arr => arr.map(clean)),
@@ -73,6 +74,16 @@ router.get("/:id", requireAdminOrTech, async (req: AuthRequest, res: Response, n
 // POST /api/report-templates — admin only
 router.post("/", requireAdmin, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
+    const limits = await getPlanLimits(req.user!.companyId!);
+    if (limits?.templateMax !== null && limits?.templateMax !== undefined) {
+      if (limits.templateMax === 0) throw new Error("PLAN_LIMIT");
+      // Count only non-default (custom) templates
+      const count = await prisma.reportTemplate.count({
+        where: { companyId: req.user!.companyId!, isDefault: false },
+      });
+      if (count >= limits.templateMax) throw new Error("PLAN_LIMIT");
+    }
+
     const body = templateSchema.parse(req.body);
     const template = await prisma.reportTemplate.create({
       data: { ...body, companyId: req.user!.companyId! },

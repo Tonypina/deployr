@@ -23,7 +23,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   useEffect(() => {
     if (isLoading) return;
-    if (!user || user.role !== "ADMIN") { router.replace("/login"); return; }
+    if (!user || (user.role !== "ADMIN" && user.role !== "SUPER_ADMIN")) { router.replace("/login"); return; }
     if (user.mustChangePassword) { router.replace("/change-password"); return; }
     if (user.onboardingCompleted === false && pathname !== "/onboarding") {
       router.replace("/onboarding");
@@ -32,12 +32,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   }, [user, isLoading, router, pathname]);
 
   useEffect(() => {
-    if (user?.role === "ADMIN") {
+    if (user?.role === "SUPER_ADMIN") {
       getSubscription().then(setSub).catch(() => {});
     }
   }, [user]);
 
-  if (isLoading || !user || user.mustChangePassword) return null;
+  if (isLoading || !user || (user.role !== "ADMIN" && user.role !== "SUPER_ADMIN") || user.mustChangePassword) return null;
   if (user.onboardingCompleted === false && pathname !== "/onboarding") return null;
 
   const trialDays = daysRemaining(sub?.trialEndsAt);

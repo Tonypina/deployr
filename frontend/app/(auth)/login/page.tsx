@@ -52,7 +52,7 @@ export default function LoginPage() {
       const res = await login(values.email, values.password);
       setAuth(res.user, res.token);
       if (res.user.mustChangePassword) { router.replace("/change-password"); return; }
-      if (res.user.role === "ADMIN") router.replace("/admin");
+      if (res.user.role === "ADMIN" || res.user.role === "SUPER_ADMIN") router.replace("/admin");
       else if (res.user.role === "TECHNICIAN") router.replace("/tech");
       else router.replace("/client");
     } catch (err) {

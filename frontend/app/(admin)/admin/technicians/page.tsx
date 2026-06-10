@@ -12,8 +12,10 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { StatsCard } from "@/components/shared/stats-card";
+import { PlanLimitBadge } from "@/components/shared/plan-limit-badge";
 import { useTechnicians } from "@/lib/hooks/use-technicians";
 import { useTickets } from "@/lib/hooks/use-tickets";
+import { usePlanFeatures } from "@/lib/hooks/use-plan-features";
 import { createTechnician, updateUser, resetUserPassword } from "@/lib/services/users";
 import { Pagination } from "@/components/ui/pagination";
 import { Ticket } from "@/lib/types";
@@ -199,6 +201,8 @@ function LoadBar({ ticket }: { ticket: Ticket | undefined }) {
 export default function TechniciansPage() {
   const { technicians, total, page, limit, loading, refetch, goToPage } = useTechnicians();
   const { tickets: activeTickets } = useTickets({ limit: 100 });
+  const { features } = usePlanFeatures();
+  const atTechLimit = features?.techMax !== null && features?.techMax !== undefined && total >= features.techMax;
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [resetingId, setResetingId]       = useState<string | null>(null);
@@ -253,11 +257,12 @@ export default function TechniciansPage() {
       <div className="page-header">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Gestión de Técnicos</h1>
-          <p className="text-on-surface-variant text-sm mt-0.5">
-            Monitoreo de disponibilidad en tiempo real
-          </p>
+          <div className="flex items-center gap-2 mt-0.5">
+            <p className="text-on-surface-variant text-sm">Monitoreo de disponibilidad en tiempo real</p>
+            <PlanLimitBadge used={total} max={features?.techMax} />
+          </div>
         </div>
-        <Button onClick={() => setShowForm(!showForm)}>
+        <Button onClick={() => setShowForm(!showForm)} disabled={atTechLimit}>
           <Plus className="h-4 w-4 mr-1.5" />Nuevo técnico
         </Button>
       </div>

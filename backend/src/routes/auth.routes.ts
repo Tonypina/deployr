@@ -6,6 +6,7 @@ import { signToken } from "../utils/jwt";
 import { authenticate } from "../middleware/auth";
 import { AuthRequest } from "../types";
 import { clean, cleanEmail } from "../utils/sanitize";
+import { getPlanLimits } from "../utils/plan-limits";
 
 const router = Router();
 
@@ -15,10 +16,11 @@ const registerSchema = z.object({
   adminName:     z.string().min(2).transform(clean),
   adminEmail:    z.string().email().transform(cleanEmail),
   adminPassword: z.string().min(8),
-  plan:          z.enum(["iniciador", "profesional", "empresarial"]).optional(),
+  plan:          z.enum(["basico", "iniciador", "profesional", "empresarial"]).optional(),
 });
 
-const PLAN_MAP: Record<string, "INICIADOR" | "PROFESIONAL" | "EMPRESARIAL"> = {
+const PLAN_MAP: Record<string, "BASICO" | "INICIADOR" | "PROFESIONAL" | "EMPRESARIAL"> = {
+  basico:   "BASICO",
   iniciador:   "INICIADOR",
   profesional: "PROFESIONAL",
   empresarial: "EMPRESARIAL",
@@ -53,7 +55,7 @@ router.post("/register", async (req: Request, res: Response, next: NextFunction)
             email: body.adminEmail,
             password: hashed,
             name: body.adminName,
-            role: "ADMIN",
+            role: "SUPER_ADMIN",
           },
         },
       },
@@ -82,7 +84,7 @@ router.post("/register", async (req: Request, res: Response, next: NextFunction)
 
     res.status(201).json({
       success: true,
-      data: { token, user: { id: admin.id, name: admin.name, email: admin.email, role: admin.role, mustChangePassword: false, onboardingCompleted: false }, companyId: company.id },
+      data: { token, user: { id: admin.id, name: admin.name, email: admin.email, role: admin.role, plan, mustChangePassword: false, onboardingCompleted: false }, companyId: company.id },
     });
   } catch (err) {
     next(err);
@@ -118,6 +120,8 @@ router.post("/login", async (req: Request, res: Response, next: NextFunction) =>
       clientId: user.clientId ?? undefined,
     });
 
+    const limits = user.companyId ? await getPlanLimits(user.companyId) : null;
+
     res.json({
       success: true,
       data: {
@@ -127,6 +131,7 @@ router.post("/login", async (req: Request, res: Response, next: NextFunction) =>
           name: user.name,
           email: user.email,
           role: user.role,
+          plan: limits?.plan ?? null,
           companyId: user.companyId,
           clientId: user.clientId,
           mustChangePassword: user.mustChangePassword,

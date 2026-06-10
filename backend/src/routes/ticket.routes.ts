@@ -4,11 +4,15 @@ import { prisma } from "../lib/prisma";
 import { authenticate, requireAdmin, requireAdminOrTech } from "../middleware/auth";
 import { AuthRequest, paginate } from "../types";
 import { Role } from "@prisma/client";
+import { getPlanLimits } from "../utils/plan-limits";
 import { expireOverdueTickets } from "../utils/expire-tickets";
 import { sendApprovalRequestEmail } from "../utils/email";
+import { generateTicketPdf } from "../utils/pdf-report";
 import { clean, cleanOpt } from "../utils/sanitize";
 
 const router = Router();
+
+const isAdminRole = (role: string) => role === Role.ADMIN || role === Role.SUPER_ADMIN;
 
 function recordStatus(ticketId: string, status: string, userId?: string) {
   (prisma.ticketStatusHistory as any)
@@ -81,7 +85,7 @@ router.get("/", async (req: AuthRequest, res: Response, next: NextFunction) => {
       ...yearFilter,
     };
 
-    if (role === Role.ADMIN) where.companyId = companyId;
+    if (isAdminRole(role)) where.companyId = companyId;
     else if (role === Role.TECHNICIAN) where.technicianId = userId;
     else if (role === Role.CLIENT_USER) where.clientId = clientId;
 
@@ -196,7 +200,7 @@ router.get("/:id", async (req: AuthRequest, res: Response, next: NextFunction) =
     });
 
     if (!ticket) throw new Error("NOT_FOUND");
-    if (role === Role.ADMIN && ticket.companyId !== companyId) throw new Error("FORBIDDEN");
+    if (isAdminRole(role) && ticket.companyId !== companyId) throw new Error("FORBIDDEN");
     if (role === Role.TECHNICIAN && ticket.technicianId !== userId) throw new Error("FORBIDDEN");
     if (role === Role.CLIENT_USER && ticket.clientId !== clientId) throw new Error("FORBIDDEN");
 
@@ -210,7 +214,7 @@ router.get("/:id", async (req: AuthRequest, res: Response, next: NextFunction) =
 router.post("/", async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const { role, companyId, clientId: userClientId } = req.user!;
-    if (role !== Role.ADMIN && role !== Role.CLIENT_USER) throw new Error("FORBIDDEN");
+    if (!isAdminRole(role) && role !== Role.CLIENT_USER) throw new Error("FORBIDDEN");
 
     const body = createSchema.parse(req.body);
 
@@ -227,8 +231,20 @@ router.post("/", async (req: AuthRequest, res: Response, next: NextFunction) => 
       resolvedClientId = body.clientId;
     }
 
+    // Enforce monthly ticket limit
+    const resolvedCompanyId = isAdminRole(role)
+      ? companyId!
+      : (await prisma.client.findUnique({ where: { id: resolvedClientId }, select: { companyId: true } }))!.companyId;
+
+    const limits = await getPlanLimits(resolvedCompanyId);
+    if (limits?.ticketMax !== null && limits?.ticketMax !== undefined) {
+      const periodStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+      const monthlyCount = await prisma.ticket.count({ where: { companyId: resolvedCompanyId, createdAt: { gte: periodStart } } });
+      if (monthlyCount >= limits.ticketMax) throw new Error("PLAN_LIMIT");
+    }
+
     // If admin assigns a technician at creation time, start as ASSIGNED
-    const initialStatus = role === Role.ADMIN && body.technicianId ? "ASSIGNED" : "PENDING";
+    const initialStatus = isAdminRole(role) && body.technicianId ? "ASSIGNED" : "PENDING";
 
     const ticket = await prisma.ticket.create({
       data: {
@@ -237,13 +253,11 @@ router.post("/", async (req: AuthRequest, res: Response, next: NextFunction) => 
         priority: body.priority,
         branchId: body.branchId,
         equipmentId: body.equipmentId,
-        technicianId: role === Role.ADMIN ? body.technicianId : undefined,
+        technicianId: isAdminRole(role) ? body.technicianId : undefined,
         scheduledAt: body.scheduledAt ? new Date(body.scheduledAt) : undefined,
         status: initialStatus,
         clientId: resolvedClientId,
-        companyId: role === Role.ADMIN
-          ? companyId!
-          : (await prisma.client.findUnique({ where: { id: resolvedClientId } }))!.companyId,
+        companyId: resolvedCompanyId,
       },
       include: {
         client: { select: { id: true, name: true } },
@@ -439,6 +453,18 @@ router.patch("/:id/close", requireAdmin, async (req: AuthRequest, res: Response,
 
     recordStatus(req.params.id, "CLOSED", req.user!.userId);
 
+    // Generate PDF report asynchronously — fire and forget
+    generateTicketPdf(req.params.id)
+      .then((url) => {
+        if (url) {
+          return (prisma.ticket as any).update({
+            where: { id: req.params.id },
+            data: { reportPdfUrl: url },
+          });
+        }
+      })
+      .catch((err: unknown) => console.error("[pdf-report] background error:", err));
+
     if (needsFollowUp) {
       await (prisma.ticket as any).create({
         data: {
@@ -508,11 +534,11 @@ router.patch("/:id/submit-review", requireAdmin, async (req: AuthRequest, res: R
 router.patch("/:id/approve", async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const { role, companyId, clientId } = req.user!;
-    if (role !== "ADMIN" && role !== "CLIENT_USER") throw new Error("FORBIDDEN");
+    if (!isAdminRole(role) && role !== "CLIENT_USER") throw new Error("FORBIDDEN");
 
     const ticket = await prisma.ticket.findUnique({ where: { id: req.params.id } });
     if (!ticket) throw new Error("NOT_FOUND");
-    if (role === "ADMIN" && ticket.companyId !== companyId) throw new Error("FORBIDDEN");
+    if (isAdminRole(role) && ticket.companyId !== companyId) throw new Error("FORBIDDEN");
     if (role === "CLIENT_USER" && ticket.clientId !== clientId) throw new Error("FORBIDDEN");
     if (ticket.status !== "PENDING_APPROVAL") {
       res.status(422).json({ success: false, message: "Solo tickets en aprobación pendiente pueden aprobarse" });

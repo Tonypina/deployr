@@ -1,7 +1,7 @@
 import { Router, Response, NextFunction } from "express";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
-import { authenticate, requireAdminOrClient } from "../middleware/auth";
+import { authenticate, requireAdmin, requireAdminOrClient } from "../middleware/auth";
 import { AuthRequest } from "../types";
 
 import { clean, cleanEmail, cleanOpt, cleanEmailOpt } from "../utils/sanitize";
@@ -41,7 +41,7 @@ router.get("/", authenticate, requireAdminOrClient, async (req: AuthRequest, res
 });
 
 // POST /api/clients/:clientId/branches
-router.post("/", authenticate, requireAdminOrClient, async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.post("/", authenticate, requireAdmin, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     if (req.user!.clientId && req.params.clientId !== req.user!.clientId) throw new Error("FORBIDDEN");
     const body = branchSchema.parse(req.body);
@@ -76,7 +76,7 @@ router.get("/:id", authenticate, requireAdminOrClient, async (req: AuthRequest, 
 });
 
 // PUT /api/clients/:clientId/branches/:id
-router.put("/:id", authenticate, requireAdminOrClient, async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.put("/:id", authenticate, requireAdmin, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     if (req.user!.clientId && req.params.clientId !== req.user!.clientId) throw new Error("FORBIDDEN");
     const body = branchSchema.partial().parse(req.body);
@@ -94,7 +94,7 @@ router.put("/:id", authenticate, requireAdminOrClient, async (req: AuthRequest, 
 });
 
 // DELETE /api/clients/:clientId/branches/:id
-router.delete("/:id", authenticate, requireAdminOrClient, async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.delete("/:id", authenticate, requireAdmin, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     if (req.user!.clientId && req.params.clientId !== req.user!.clientId) throw new Error("FORBIDDEN");
     const branch = await prisma.branch.findFirst({

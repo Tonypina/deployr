@@ -25,7 +25,11 @@ const adminNav: NavItem[] = [
   { label: "Pólizas",   href: "/admin/policies",       icon: FileCheck       },
   { label: "Reportes",   href: "/admin/reports",        icon: FileText        },
   { label: "Inventario", href: "/admin/inventory",      icon: Package         },
-  { label: "Mi Empresa",    href: "/admin/company",  icon: Settings    },
+];
+
+const superAdminNav: NavItem[] = [
+  ...adminNav,
+  { label: "Mi Empresa",   href: "/admin/company",  icon: Settings    },
   { label: "Suscripción",  href: "/admin/billing",  icon: CreditCard  },
 ];
 
@@ -44,12 +48,14 @@ const clientNav: NavItem[] = [
 
 const navByRole: Record<Role, NavItem[]> = {
   ADMIN:       adminNav,
+  SUPER_ADMIN: superAdminNav,
   TECHNICIAN:  techNav,
   CLIENT_USER: clientNav,
 };
 
 const roleLabel: Record<Role, string> = {
   ADMIN:       "Administrador",
+  SUPER_ADMIN: "Super Admin",
   TECHNICIAN:  "Técnico",
   CLIENT_USER: "Cliente",
 };
@@ -59,6 +65,8 @@ interface SidebarProps {
   onClose?: () => void;
 }
 
+const PLANS_WITH_POLICIES = new Set<string>(["PROFESIONAL", "EMPRESARIAL"]);
+
 export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
   const pathname  = usePathname();
   const router    = useRouter();
@@ -66,7 +74,10 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
 
   if (!user) return null;
 
-  const nav = navByRole[user.role];
+  const allowPolicies = !user.plan || PLANS_WITH_POLICIES.has(user.plan);
+  const nav = navByRole[user.role].filter((item) =>
+    item.href !== "/admin/policies" || allowPolicies
+  );
 
   function handleLogout() {
     onClose?.();

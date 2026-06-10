@@ -17,8 +17,8 @@ import { getPlans } from "@/lib/services/plans";
 // ── Static content ─────────────────────────────────────────────────────────
 
 const OVERAGE_ROWS = [
-  { plan: "Básico", limit: "100 tickets", rate: "$25 MXN", example: "300 tickets = $899 + ($25 × 200) = $5,899 MXN" },
-  { plan: "Iniciador", limit: "250 tickets", rate: "$25 MXN", example: "300 tickets = $1,799 + ($25 × 50) = $3,049 MXN" },
+  { plan: "Básico", limit: "50 tickets", rate: "$25 MXN", example: "300 tickets = $699 + ($25 × 200) = $5,699 MXN" },
+  { plan: "Iniciador", limit: "150 tickets", rate: "$25 MXN", example: "300 tickets = $1,799 + ($25 × 50) = $3,049 MXN" },
   { plan: "Profesional", limit: "1,500 tickets", rate: "$15 MXN", example: "2,000 tickets = $5,299 + ($15 × 500) = $12,799 MXN" },
   { plan: "Empresarial", limit: "Ilimitados", rate: "—", example: "Sin cargos adicionales" },
 ];

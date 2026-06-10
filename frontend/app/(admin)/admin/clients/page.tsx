@@ -18,6 +18,8 @@ import { deleteClient } from "@/lib/services/clients";
 import { getTickets } from "@/lib/services/tickets";
 import { toast } from "@/hooks/use-toast";
 import { Client, Ticket } from "@/lib/types";
+import { PlanLimitBadge } from "@/components/shared/plan-limit-badge";
+import { usePlanFeatures } from "@/lib/hooks/use-plan-features";
 
 // ── Client detail panel ───────────────────────────────────────────────────────
 
@@ -185,6 +187,8 @@ export default function ClientsPage() {
   const { clients, total, page, limit, loading, refetch, goToPage } =
     useClients({ search: debouncedSearch || undefined });
   const { data: stats } = useClientStats();
+  const { features } = usePlanFeatures();
+  const atClientLimit = features?.clientMax !== null && features?.clientMax !== undefined && total >= features.clientMax;
 
   // If the selected client's data refreshes, keep it in sync
   useEffect(() => {
@@ -224,13 +228,22 @@ export default function ClientsPage() {
       <div className="page-header">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Clientes</h1>
-          <p className="text-on-surface-variant text-sm mt-0.5">Directorio y seguimiento de clientes</p>
+          <div className="flex items-center gap-2 mt-0.5">
+            <p className="text-on-surface-variant text-sm">Directorio y seguimiento de clientes</p>
+            <PlanLimitBadge used={total} max={features?.clientMax} />
+          </div>
         </div>
-        <Button asChild>
-          <Link href="/admin/clients/new">
+        {atClientLimit ? (
+          <Button disabled>
             <Plus className="h-4 w-4 mr-1.5" />Nuevo cliente
-          </Link>
-        </Button>
+          </Button>
+        ) : (
+          <Button asChild>
+            <Link href="/admin/clients/new">
+              <Plus className="h-4 w-4 mr-1.5" />Nuevo cliente
+            </Link>
+          </Button>
+        )}
       </div>
 
       {/* Stats */}

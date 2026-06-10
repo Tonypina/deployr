@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ClipboardList, ChevronRight, Search, X } from "lucide-react";
+import { ClipboardList, ChevronRight, Search, X, User } from "lucide-react";
 import { Ticket, TicketStatus } from "@/lib/types";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -190,50 +190,72 @@ export default function HistoryPage() {
 
       {/* Results */}
       {loading ? (
-        <p className="text-sm text-muted-foreground">Cargando...</p>
+        <div className="glass-card rounded-xl px-6 py-10 text-center">
+          <p className="text-sm text-on-surface-variant">Cargando...</p>
+        </div>
       ) : tickets.length === 0 ? (
-        <Card>
-          <CardContent className="flex flex-col items-center py-12 gap-2">
-            <ClipboardList className="h-10 w-10 text-muted-foreground" />
-            <p className="font-medium">
-              {total === 0 && activeFilterCount === 0 ? "Sin historial de servicios" : "Ningún servicio coincide con los filtros"}
-            </p>
-            {activeFilterCount > 0 && (
-              <button onClick={clearFilters} className="text-sm text-primary hover:underline">Limpiar filtros</button>
-            )}
-          </CardContent>
-        </Card>
+        <div className="glass-card rounded-xl px-6 py-14 flex flex-col items-center gap-3">
+          <div className="h-12 w-12 rounded-full bg-surface-container-high flex items-center justify-center">
+            <ClipboardList className="h-6 w-6 text-on-surface-variant" />
+          </div>
+          <p className="font-semibold text-on-surface">
+            {total === 0 && activeFilterCount === 0 ? "Sin historial de servicios" : "Ningún servicio coincide con los filtros"}
+          </p>
+          {activeFilterCount > 0 && (
+            <button onClick={clearFilters} className="text-sm text-primary hover:underline">Limpiar filtros</button>
+          )}
+        </div>
       ) : (
         <>
-          <div className="grid gap-3">
-            {tickets.map((t) => (
-              <Link key={t.id} href={`/client/tickets/${t.id}`} className="group block">
-                <Card className="hover:shadow-md transition-shadow">
-                  <CardContent className="card-content-tight">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0 flex-1">
-                        <div className="flex gap-2 mb-1 flex-wrap">
+          <div className="glass-card rounded-xl overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-surface-container-low">
+                    {["Servicio", "Sucursal / Equipo", "Técnico", "Fecha", ""].map((h) => (
+                      <th key={h} className="px-6 py-4 font-label-caps text-on-surface-variant border-b border-outline-variant/30">
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-outline-variant/10">
+                  {tickets.map((t) => (
+                    <tr key={t.id} className="hover:bg-white/5 transition-colors">
+                      <td className="px-6 py-4 max-w-[220px]">
+                        <p className="font-semibold text-sm text-on-surface truncate">{t.title}</p>
+                        <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                           <span className={cn("text-xs px-2 py-0.5 rounded-full font-medium", statusColor[t.status])}>{statusLabel[t.status]}</span>
                           <span className={cn("text-xs px-2 py-0.5 rounded-full font-medium", priorityColor[t.priority])}>{priorityLabel[t.priority]}</span>
                         </div>
-                        <p className="font-semibold truncate">{t.title}</p>
-                        {t.branch && (
-                          <p className="text-sm text-muted-foreground">
-                            {t.branch.name}{t.branch.city ? ` · ${t.branch.city}` : ""}
-                          </p>
-                        )}
-                        {t.equipment && <p className="text-sm text-muted-foreground">{t.equipment.name}</p>}
-                        <p className="text-xs text-muted-foreground mt-1">
-                          {formatDate(t.closedAt ?? t.scheduledAt ?? t.createdAt)}
-                          {t.technician && ` · ${t.technician.name}`}
-                        </p>
-                      </div>
-                      <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-foreground transition-colors shrink-0 mt-1" />
-                    </div>
-                  </CardContent>
-                </Card>
-              </Link>
-            ))}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-on-surface-variant">
+                        {t.branch ? (
+                          <>
+                            <span>{t.branch.name}{t.branch.city ? ` · ${t.branch.city}` : ""}</span>
+                            {t.equipment && <span className="block text-xs">{t.equipment.name}</span>}
+                          </>
+                        ) : "—"}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-on-surface-variant whitespace-nowrap">
+                        <div className="flex items-center gap-1.5">
+                          <User className="h-3.5 w-3.5 shrink-0" />
+                          {t.technician?.name ?? <span className="italic">Sin asignar</span>}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-sm text-on-surface-variant whitespace-nowrap">
+                        {formatDate(t.closedAt ?? t.scheduledAt ?? t.createdAt)}
+                      </td>
+                      <td className="px-6 py-4">
+                        <Link href={`/client/tickets/${t.id}`} className="inline-flex items-center justify-center h-8 w-8 rounded-md hover:bg-white/10 transition-colors">
+                          <ChevronRight className="h-3.5 w-3.5 text-on-surface-variant" />
+                        </Link>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
           <Pagination page={page} total={total} limit={PAGE_SIZE} onPage={setPage} />
         </>

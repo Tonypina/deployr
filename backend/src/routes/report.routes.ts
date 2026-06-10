@@ -24,10 +24,12 @@ const reportSchema = z.object({
   spareParts:         z.array(sparePartSchema).optional(),
 });
 
+const isAdminRole = (role: string) => role === Role.ADMIN || role === Role.SUPER_ADMIN;
+
 async function getTicketForUser(ticketId: string, user: AuthRequest["user"]) {
   const ticket = await prisma.ticket.findUnique({ where: { id: ticketId } });
   if (!ticket) throw new Error("NOT_FOUND");
-  if (user!.role === Role.ADMIN && ticket.companyId !== user!.companyId) throw new Error("FORBIDDEN");
+  if (isAdminRole(user!.role) && ticket.companyId !== user!.companyId) throw new Error("FORBIDDEN");
   if (user!.role === Role.TECHNICIAN && ticket.technicianId !== user!.userId) throw new Error("FORBIDDEN");
   if (user!.role === Role.CLIENT_USER && ticket.clientId !== user!.clientId) throw new Error("FORBIDDEN");
   return ticket;
@@ -78,8 +80,16 @@ router.post("/", requireAdminOrTech, async (req: AuthRequest, res: Response, nex
       }
     }
 
+    const company = await prisma.company.findUnique({ where: { id: ticket.companyId }, select: { name: true } });
+    const prefix = (company?.name ?? "TKT").replace(/[^a-zA-Z]/g, "").slice(0, 3).toUpperCase();
+    const reportCount = await (prisma.ticketReport as any).count({
+      where: { ticket: { companyId: ticket.companyId } },
+    });
+    const folio = `${prefix}-${reportCount + 1}`;
+
     const report = await prisma.ticketReport.create({
       data: {
+        folio,
         responses: body.responses,
         techSignature: body.techSignature,
         clientSignature: body.clientSignature,

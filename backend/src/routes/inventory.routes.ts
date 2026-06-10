@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { authenticate, requireAdmin, requireAdminOrTech } from "../middleware/auth";
 import { AuthRequest, paginate } from "../types";
+import { getPlanLimits } from "../utils/plan-limits";
 
 import { clean, cleanOpt } from "../utils/sanitize";
 
@@ -42,6 +43,12 @@ router.get("/", authenticate, requireAdminOrTech, async (req: AuthRequest, res: 
 
 router.post("/", authenticate, requireAdminOrTech, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
+    const limits = await getPlanLimits(req.user!.companyId!);
+    if (limits?.inventoryMax !== null && limits?.inventoryMax !== undefined) {
+      const count = await prisma.inventoryItem.count({ where: { companyId: req.user!.companyId! } });
+      if (count >= limits.inventoryMax) throw new Error("PLAN_LIMIT");
+    }
+
     const body = itemSchema.parse(req.body);
     const item = await prisma.inventoryItem.create({
       data: { ...body, companyId: req.user!.companyId! },

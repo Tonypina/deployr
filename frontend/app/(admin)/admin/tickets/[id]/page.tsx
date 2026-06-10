@@ -6,7 +6,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import Link from "next/link";
-import { ChevronLeft, UserCheck, X, CheckCheck, FileText, Upload, ThumbsUp, RotateCcw, Pencil, MapPin, ClipboardList } from "lucide-react";
+import { ChevronLeft, UserCheck, X, CheckCheck, FileText, Upload, ThumbsUp, RotateCcw, Pencil, MapPin, ClipboardList, Download } from "lucide-react";
 import { useTicket } from "@/lib/hooks/use-ticket";
 import { useTechnicians } from "@/lib/hooks/use-technicians";
 import { assignTicket, closeTicket as closeTicketService, cancelTicket as cancelTicketService, submitReview as submitReviewService, approveTicket as approveTicketService, reopenTicket as reopenTicketService } from "@/lib/services/tickets";
@@ -174,6 +174,15 @@ export default function AdminTicketDetailPage() {
         </div>
       );
     }
+    if (field.type === "SIGNATURE") {
+      const src = parseImages(value)[0];
+      if (!src) return <p className="text-sm text-muted-foreground">Sin firma</p>;
+      return (
+        <button type="button" onClick={() => setLightboxSrc(src)} className="inline-block">
+          <img src={src} alt="Firma" className="h-24 max-w-xs rounded-md border border-border object-contain bg-white hover:opacity-80 transition-opacity cursor-zoom-in" />
+        </button>
+      );
+    }
     if (field.type === "TEXTAREA") {
       return (
         <textarea
@@ -272,6 +281,24 @@ export default function AdminTicketDetailPage() {
           </div>
         </CardContent>
       </Card>
+
+      {ticket.reportPdfUrl && (
+        <Card className="border-blue-200 bg-blue-50">
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="font-semibold text-blue-900">Orden de trabajo generada</p>
+                <p className="text-sm text-blue-700 mt-0.5">El documento de servicio está listo para descargar.</p>
+              </div>
+              <Button asChild className="bg-blue-700 hover:bg-blue-800 shrink-0">
+                <a href={ticket.reportPdfUrl} target="_blank" rel="noopener noreferrer">
+                  <Download className="h-4 w-4 mr-1" />Descargar PDF
+                </a>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Assign technician — only when PENDING */}
       {ticket.status === "PENDING" && (
@@ -482,6 +509,15 @@ export default function AdminTicketDetailPage() {
                         </button>
                       ))}
                     </div>
+                  ) : field.type === "SIGNATURE" ? (
+                    (() => {
+                      const src = parseImages(value)[0];
+                      return src ? (
+                        <button type="button" onClick={() => setLightboxSrc(src)} className="inline-block">
+                          <img src={src} alt="Firma" className="h-24 max-w-xs rounded-md border border-border object-contain bg-white hover:opacity-80 transition-opacity cursor-zoom-in" />
+                        </button>
+                      ) : null;
+                    })()
                   ) : field.type === "MULTISELECT" ? (
                     <div className="flex flex-wrap gap-1.5">
                       {(JSON.parse(value) as string[]).map((v) => (

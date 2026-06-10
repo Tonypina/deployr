@@ -27,6 +27,10 @@ export function errorHandler(err: unknown, _req: Request, res: Response, _next: 
       res.status(409).json({ success: false, message: "Resource already exists" });
       return;
     }
+    if (err.message === "PLAN_LIMIT") {
+      res.status(402).json({ success: false, message: "Límite del plan alcanzado. Actualiza tu plan para continuar." });
+      return;
+    }
   }
 
   console.error("Unhandled error:", err);

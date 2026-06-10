@@ -40,7 +40,7 @@ function ticketSortKey(t: Ticket) {
 export default function TechPortal() {
   const router = useRouter();
   const { user } = useAuthStore();
-  const { tickets, loading, refetch } = useTickets({ limit: 50 });
+  const { tickets, loading, refetch } = useTickets({ limit: 5 });
   const { items: inventory } = useInventory();
 
   const active    = tickets.filter((t) => ["IN_PROGRESS", "PENDING_REPORT", "ON_SITE"].includes(t.status));

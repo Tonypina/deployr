@@ -1,7 +1,7 @@
 import { Router, Response, NextFunction } from "express";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
-import { authenticate, requireAdmin } from "../middleware/auth";
+import { authenticate, requireAdmin, requireSuperAdmin } from "../middleware/auth";
 import { AuthRequest } from "../types";
 import {
   stripe,
@@ -12,6 +12,7 @@ import {
   createBillingPortalSession,
   getPriceId,
 } from "../utils/stripe";
+import { getPlanLimits } from "../utils/plan-limits";
 
 const router = Router();
 router.use(authenticate);
@@ -26,8 +27,23 @@ router.get("/plans", async (_req, res: Response, next: NextFunction) => {
   }
 });
 
+// ── GET /api/billing/plan-features ────────────────────────────────────────
+// Available to all admins — returns plan limits for UI gating (no billing secrets)
+router.get("/plan-features", requireAdmin, async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const limits = await getPlanLimits(req.user!.companyId!);
+    if (!limits) {
+      res.status(404).json({ success: false, message: "No subscription found" });
+      return;
+    }
+    res.json({ success: true, data: limits });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // ── GET /api/billing/subscription ─────────────────────────────────────────
-router.get("/subscription", requireAdmin, async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.get("/subscription", requireSuperAdmin, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const sub = await prisma.subscription.findUnique({
       where: { companyId: req.user!.companyId! },
@@ -65,7 +81,7 @@ router.get("/subscription", requireAdmin, async (req: AuthRequest, res: Response
 
 // ── POST /api/billing/checkout ─────────────────────────────────────────────
 // Creates a Stripe Checkout session → returns { url }
-router.post("/checkout", requireAdmin, async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.post("/checkout", requireSuperAdmin, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     if (!stripe) {
       res.status(503).json({ success: false, message: "Stripe no está configurado aún" });
@@ -130,7 +146,7 @@ router.post("/checkout", requireAdmin, async (req: AuthRequest, res: Response, n
 // ── GET /api/billing/checkout-status?session_id=xxx ───────────────────────
 // Also syncs the subscription from Stripe if the session is complete but the
 // webhook hasn't fired yet (common in local dev without stripe listen).
-router.get("/checkout-status", requireAdmin, async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.get("/checkout-status", requireSuperAdmin, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     if (!stripe) {
       res.status(503).json({ success: false, message: "Stripe no está configurado" });
@@ -205,7 +221,7 @@ router.get("/checkout-status", requireAdmin, async (req: AuthRequest, res: Respo
 
 // ── POST /api/billing/portal ───────────────────────────────────────────────
 // Opens Stripe Customer Portal (manage payment methods, cancel, invoices)
-router.post("/portal", requireAdmin, async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.post("/portal", requireSuperAdmin, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     if (!stripe) {
       res.status(503).json({ success: false, message: "Stripe no está configurado aún" });

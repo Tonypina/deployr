@@ -29,7 +29,7 @@ const schema = z
 type FormValues = z.infer<typeof schema>;
 
 function rolePath(role: string) {
-  if (role === "ADMIN") return "/admin";
+  if (role === "ADMIN" || role === "SUPER_ADMIN") return "/admin";
   if (role === "TECHNICIAN") return "/tech";
   return "/client";
 }
