@@ -295,3 +295,4 @@ After deploying the backend, register the webhook endpoint in the Stripe Dashboa
 - Events to listen for: `checkout.session.completed`, `customer.subscription.updated`, `customer.subscription.deleted`
 
 Copy the signing secret into `STRIPE_WEBHOOK_SECRET`.
+ 
