@@ -47,7 +47,7 @@ router.get("/", async (req: AuthRequest, res: Response, next: NextFunction) => {
         template: { include: { fields: { orderBy: { order: "asc" } } } },
         spareParts: { include: { inventoryItem: { select: { id: true, name: true, unit: true } } } },
       },
-    } as Parameters<typeof prisma.ticketReport.findUnique>[0]);
+    });
     if (!report) throw new Error("NOT_FOUND");
     res.json({ success: true, data: report });
   } catch (err) {
@@ -82,7 +82,7 @@ router.post("/", requireAdminOrTech, async (req: AuthRequest, res: Response, nex
 
     const company = await prisma.company.findUnique({ where: { id: ticket.companyId }, select: { name: true } });
     const prefix = (company?.name ?? "TKT").replace(/[^a-zA-Z]/g, "").slice(0, 3).toUpperCase();
-    const reportCount = await (prisma.ticketReport as any).count({
+    const reportCount = await prisma.ticketReport.count({
       where: { ticket: { companyId: ticket.companyId } },
     });
     const folio = `${prefix}-${reportCount + 1}`;
@@ -104,16 +104,16 @@ router.post("/", requireAdminOrTech, async (req: AuthRequest, res: Response, nex
         template: { include: { fields: { orderBy: { order: "asc" } } } },
         spareParts: { include: { inventoryItem: { select: { id: true, name: true, unit: true } } } },
       },
-    } as Parameters<typeof prisma.ticketReport.create>[0]);
+    });
 
     await prisma.ticket.update({
       where: { id: req.params.ticketId },
       data: { status: "COMPLETED", closedAt: new Date() },
     });
 
-    (prisma.ticketStatusHistory as any)
+    prisma.ticketStatusHistory
       .create({ data: { ticketId: req.params.ticketId, status: "COMPLETED", changedBy: req.user!.userId } })
-      .catch(() => {});
+      .catch((err: unknown) => console.error(`[report] failed to record COMPLETED for ${req.params.ticketId}:`, err));
 
     res.status(201).json({ success: true, data: report });
   } catch (err) {
@@ -138,7 +138,7 @@ router.put("/", requireAdminOrTech, async (req: AuthRequest, res: Response, next
 
     // Replace spare parts when requiresSpareParts is provided
     if (body.requiresSpareParts !== undefined) {
-      await (prisma.ticketReportSparePart as any).deleteMany({ where: { reportId: report.id } });
+      await prisma.ticketReportSparePart.deleteMany({ where: { reportId: report.id } });
     }
 
     const updated = await prisma.ticketReport.update({
@@ -153,11 +153,11 @@ router.put("/", requireAdminOrTech, async (req: AuthRequest, res: Response, next
         template: { include: { fields: { orderBy: { order: "asc" } } } },
         spareParts: { include: { inventoryItem: { select: { id: true, name: true, unit: true } } } },
       },
-    } as Parameters<typeof prisma.ticketReport.update>[0]);
+    });
 
     if (body.requiresSpareParts && body.spareParts?.length) {
-      await (prisma.ticketReportSparePart as any).createMany({
-        data: body.spareParts.map(({ inventoryItemId, quantity }: { inventoryItemId: string; quantity: number }) => ({
+      await prisma.ticketReportSparePart.createMany({
+        data: body.spareParts.map(({ inventoryItemId, quantity }) => ({
           reportId: report.id,
           inventoryItemId,
           quantity,
@@ -171,9 +171,9 @@ router.put("/", requireAdminOrTech, async (req: AuthRequest, res: Response, next
       data: { status: "COMPLETED", closedAt: new Date() },
     });
 
-    (prisma.ticketStatusHistory as any)
+    prisma.ticketStatusHistory
       .create({ data: { ticketId: req.params.ticketId, status: "COMPLETED", changedBy: req.user!.userId } })
-      .catch(() => {});
+      .catch((err: unknown) => console.error(`[report] failed to record COMPLETED for ${req.params.ticketId}:`, err));
 
     res.json({ success: true, data: updated });
   } catch (err) {

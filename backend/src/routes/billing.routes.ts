@@ -11,6 +11,9 @@ import {
   createCheckoutSession,
   createBillingPortalSession,
   getPriceId,
+  subscriptionPeriod,
+  planFromPriceId,
+  stripeStatusToLocal,
 } from "../utils/stripe";
 import { getPlanLimits } from "../utils/plan-limits";
 
@@ -174,29 +177,10 @@ router.get("/checkout-status", requireSuperAdmin, async (req: AuthRequest, res: 
           : session.subscription.id;
         const customerId = typeof session.customer === "string"
           ? session.customer
-          : (session.customer as any)?.id ?? "";
+          : session.customer?.id ?? "";
 
         const stripeSub = await stripe.subscriptions.retrieve(subId);
         const priceId = stripeSub.items.data[0]?.price?.id ?? "";
-
-        const statusMap: Record<string, string> = {
-          trialing:           "TRIALING",
-          active:             "ACTIVE",
-          past_due:           "PAST_DUE",
-          canceled:           "CANCELLED",
-          paused:             "PAUSED",
-          incomplete:         "PAST_DUE",
-          incomplete_expired: "CANCELLED",
-          unpaid:             "PAST_DUE",
-        };
-        const priceToTier: Record<string, string> = {
-          [process.env.STRIPE_PRICE_BASICO_MONTHLY      ?? "__"]: "BASICO",
-          [process.env.STRIPE_PRICE_BASICO_ANNUAL       ?? "__"]: "BASICO",
-          [process.env.STRIPE_PRICE_INICIADOR_MONTHLY   ?? "__"]: "INICIADOR",
-          [process.env.STRIPE_PRICE_INICIADOR_ANNUAL    ?? "__"]: "INICIADOR",
-          [process.env.STRIPE_PRICE_PROFESIONAL_MONTHLY ?? "__"]: "PROFESIONAL",
-          [process.env.STRIPE_PRICE_PROFESIONAL_ANNUAL  ?? "__"]: "PROFESIONAL",
-        };
 
         await prisma.subscription.update({
           where: { companyId },
@@ -204,10 +188,9 @@ router.get("/checkout-status", requireSuperAdmin, async (req: AuthRequest, res: 
             stripeCustomerId:     customerId,
             stripeSubscriptionId: subId,
             stripePriceId:        priceId,
-            plan:                 (priceToTier[priceId] ?? "INICIADOR") as PlanTier,
-            status:               (statusMap[stripeSub.status] ?? "ACTIVE") as any,
-            ...(stripeSub.current_period_start ? { currentPeriodStart: new Date(stripeSub.current_period_start * 1000) } : {}),
-            ...(stripeSub.current_period_end   ? { currentPeriodEnd:   new Date(stripeSub.current_period_end   * 1000) } : {}),
+            plan:                 planFromPriceId(priceId),
+            status:               stripeStatusToLocal(stripeSub.status),
+            ...subscriptionPeriod(stripeSub),
           },
         });
       }

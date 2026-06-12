@@ -2,9 +2,9 @@
 
 import { useRef, useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ReportTemplateField, InventoryItem } from "@/lib/types";
+import { ReportTemplateField, InventoryItem, PreviousService } from "@/lib/types";
 import { useTicket } from "@/lib/hooks/use-ticket";
-import { checkinTicket, startTicket, finishTicket } from "@/lib/services/tickets";
+import { checkinTicket, startTicket, finishTicket, getPreviousService } from "@/lib/services/tickets";
 import { submitReport as submitReportService, updateReport as updateReportService, getTemplateForTicket } from "@/lib/services/reports";
 import { resizeToBlob, uploadImage } from "@/lib/services/upload";
 import { getInventory } from "@/lib/services/inventory";
@@ -27,6 +27,105 @@ function parseImages(value: string): string[] {
   } catch {
     return [value]; // legacy single base64 string
   }
+}
+
+// ── Read-only report value rendering ────────────────────────────────────────────
+// Shared by the submitted-report card and the previous-service card.
+function renderReportValue(field: ReportTemplateField, value: string, onZoom: (src: string) => void) {
+  if (field.type === "PHOTO") {
+    return (
+      <div className="flex flex-wrap gap-2">
+        {parseImages(value).map((src, i) => (
+          <button key={i} type="button" onClick={() => onZoom(src)} className="shrink-0">
+            <img src={src} alt={`${field.label} ${i + 1}`} className="h-20 w-20 rounded-md border border-border object-cover hover:opacity-80 transition-opacity cursor-zoom-in" />
+          </button>
+        ))}
+      </div>
+    );
+  }
+  if (field.type === "SIGNATURE") {
+    const src = parseImages(value)[0];
+    return src ? (
+      <button type="button" onClick={() => onZoom(src)} className="inline-block">
+        <img src={src} alt="Firma" className="h-24 max-w-xs rounded-md border border-border object-contain bg-white hover:opacity-80 transition-opacity cursor-zoom-in" />
+      </button>
+    ) : null;
+  }
+  if (field.type === "MULTISELECT") {
+    return (
+      <div className="flex flex-wrap gap-1.5">
+        {(JSON.parse(value) as string[]).map((v) => (
+          <span key={v} className="text-xs px-2 py-0.5 rounded-full font-medium bg-blue-100 text-blue-800">
+            {v}
+          </span>
+        ))}
+      </div>
+    );
+  }
+  if (field.type === "DATE") return <p>{formatDate(value)}</p>;
+  return <p>{value}</p>;
+}
+
+// ── PreviousServiceCard ─────────────────────────────────────────────────────────
+// Shows the equipment's last serviced ticket and its report so the assigned
+// technician can review prior work before starting.
+function PreviousServiceCard({ data, onZoom }: { data: PreviousService; onZoom: (src: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const report = data.report;
+  const fields = report?.template?.fields ?? [];
+
+  return (
+    <Card className="border-slate-200">
+      <CardHeader>
+        <div className="flex items-center justify-between gap-2">
+          <CardTitle className="text-base">Servicio anterior del equipo</CardTitle>
+          <span className={cn("text-xs px-2 py-0.5 rounded-full font-medium", statusColor[data.status])}>{statusLabel[data.status]}</span>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          {data.title} · {formatDate(data.closedAt ?? data.createdAt)}
+          {data.technician ? ` · ${data.technician.name}` : ""}
+        </p>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {data.reportPdfUrl && (
+          <Button asChild variant="outline" size="sm">
+            <a href={data.reportPdfUrl} target="_blank" rel="noopener noreferrer">
+              <Download className="h-4 w-4 mr-1" />Descargar PDF del reporte
+            </a>
+          </Button>
+        )}
+
+        {report && fields.length > 0 ? (
+          <>
+            <button
+              type="button"
+              onClick={() => setOpen((o) => !o)}
+              className="text-sm font-medium text-primary hover:underline"
+            >
+              {open ? "Ocultar reporte" : "Ver reporte"}
+            </button>
+            {open && (
+              <div className="space-y-3 text-sm border-t pt-3">
+                {fields.map((field) => {
+                  const value = report.responses[field.id];
+                  if (!value) return null;
+                  return (
+                    <div key={field.id}>
+                      <p className="font-medium text-muted-foreground mb-1">{field.label}</p>
+                      {renderReportValue(field, value, onZoom)}
+                    </div>
+                  );
+                })}
+                <p className="text-xs text-muted-foreground pt-1">Enviado {formatDate(report.createdAt)}</p>
+              </div>
+            )}
+          </>
+        ) : (
+          <p className="text-sm text-muted-foreground">Sin reporte disponible.</p>
+        )}
+      </CardContent>
+    </Card>
+  );
 }
 
 function PhotoField({
@@ -340,7 +439,13 @@ export default function TechTicketDetailPage() {
   const [starting, setStarting] = useState(false);
   const [finishing, setFinishing] = useState(false);
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
+  const [previousService, setPreviousService] = useState<PreviousService | null>(null);
   const pendingFilesRef = useRef<Map<string, File>>(new Map());
+
+  useEffect(() => {
+    if (!ticket?.equipmentId) { setPreviousService(null); return; }
+    getPreviousService(id).then(setPreviousService).catch(() => setPreviousService(null));
+  }, [id, ticket?.equipmentId]);
 
   // Spare parts state
   const [requiresSpareParts, setRequiresSpareParts] = useState(false);
@@ -622,6 +727,8 @@ export default function TechTicketDetailPage() {
         </CardContent>
       </Card>
 
+      {previousService && <PreviousServiceCard data={previousService} onZoom={setLightboxSrc} />}
+
       {ticket.reportPdfUrl && (
         <Card className="border-blue-200 bg-blue-50">
           <CardContent className="pt-6">
@@ -745,36 +852,7 @@ export default function TechTicketDetailPage() {
               return (
                 <div key={field.id}>
                   <p className="font-medium text-muted-foreground mb-1">{field.label}</p>
-                  {field.type === "PHOTO" ? (
-                    <div className="flex flex-wrap gap-2">
-                      {parseImages(value).map((src, i) => (
-                        <button key={i} type="button" onClick={() => setLightboxSrc(src)} className="shrink-0">
-                          <img src={src} alt={`${field.label} ${i + 1}`} className="h-20 w-20 rounded-md border border-border object-cover hover:opacity-80 transition-opacity cursor-zoom-in" />
-                        </button>
-                      ))}
-                    </div>
-                  ) : field.type === "SIGNATURE" ? (
-                    (() => {
-                      const src = parseImages(value)[0];
-                      return src ? (
-                        <button type="button" onClick={() => setLightboxSrc(src)} className="inline-block">
-                          <img src={src} alt="Firma" className="h-24 max-w-xs rounded-md border border-border object-contain bg-white hover:opacity-80 transition-opacity cursor-zoom-in" />
-                        </button>
-                      ) : null;
-                    })()
-                  ) : field.type === "MULTISELECT" ? (
-                    <div className="flex flex-wrap gap-1.5">
-                      {(JSON.parse(value) as string[]).map((v) => (
-                        <span key={v} className="text-xs px-2 py-0.5 rounded-full font-medium bg-blue-100 text-blue-800">
-                          {v}
-                        </span>
-                      ))}
-                    </div>
-                  ) : field.type === "DATE" ? (
-                    <p>{formatDate(value)}</p>
-                  ) : (
-                    <p>{value}</p>
-                  )}
+                  {renderReportValue(field, value, setLightboxSrc)}
                 </div>
               );
             })}

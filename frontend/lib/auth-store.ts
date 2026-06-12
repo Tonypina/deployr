@@ -18,15 +18,17 @@ export const useAuthStore = create<AuthState>((set) => ({
   setAuth: (user, token) => {
     localStorage.setItem("token", token);
     localStorage.setItem("user", JSON.stringify(user));
-    // Short-lived cookie so middleware can verify auth without localStorage access
-    document.cookie = `mp_token=${token}; path=/; max-age=86400; SameSite=Lax`;
+    // Short-lived cookie so middleware can verify auth without localStorage access.
+    // Add `Secure` over HTTPS so the cookie is never sent over plaintext.
+    const secure = typeof location !== "undefined" && location.protocol === "https:" ? "; Secure" : "";
+    document.cookie = `mp_token=${token}; path=/; max-age=86400; SameSite=Lax${secure}`;
     set({ user, token, isLoading: false });
   },
 
   clearAuth: () => {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
-    document.cookie = "mp_token=; path=/; max-age=0";
+    document.cookie = "mp_token=; path=/; max-age=0; SameSite=Lax";
     set({ user: null, token: null, isLoading: false });
   },
 

@@ -3,7 +3,7 @@ import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { authenticate, requireAdmin, requireAdminOrTech } from "../middleware/auth";
 import { AuthRequest, paginate } from "../types";
-import { Role } from "@prisma/client";
+import { Role, TicketStatus } from "@prisma/client";
 import { getPlanLimits } from "../utils/plan-limits";
 import { expireOverdueTickets } from "../utils/expire-tickets";
 import { sendApprovalRequestEmail } from "../utils/email";
@@ -14,10 +14,12 @@ const router = Router();
 
 const isAdminRole = (role: string) => role === Role.ADMIN || role === Role.SUPER_ADMIN;
 
-function recordStatus(ticketId: string, status: string, userId?: string) {
-  (prisma.ticketStatusHistory as any)
+function recordStatus(ticketId: string, status: TicketStatus, userId?: string) {
+  prisma.ticketStatusHistory
     .create({ data: { ticketId, status, changedBy: userId ?? null } })
-    .catch(() => {});
+    .catch((err: unknown) =>
+      console.error(`[ticket] failed to record status ${status} for ${ticketId}:`, err)
+    );
 }
 
 const createSchema = z.object({
@@ -27,7 +29,6 @@ const createSchema = z.object({
   clientId:     z.string().optional(),
   branchId:     z.string().optional(),
   equipmentId:  z.string().optional(),
-  technicianId: z.string().optional(),
   scheduledAt:  z.string().datetime().optional(),
 });
 
@@ -47,10 +48,12 @@ router.use(authenticate);
 
 // GET /api/tickets — filtered by role
 router.get("/", async (req: AuthRequest, res: Response, next: NextFunction) => {
-  // Expire overdue tickets on every list fetch (fire-and-forget)
-  expireOverdueTickets().catch(() => {});
-
   try {
+    // Expire overdue tickets before listing. Awaited (not fire-and-forget) so it
+    // actually runs on serverless; its own errors are logged and never break the
+    // list. A scheduled job would be better, but this keeps the data consistent.
+    await expireOverdueTickets().catch((e) => console.error("[tickets] expire failed:", e));
+
     const {
       status, priority, year, page = "1", limit = "20",
       search,
@@ -210,6 +213,64 @@ router.get("/:id", async (req: AuthRequest, res: Response, next: NextFunction) =
   }
 });
 
+// GET /api/tickets/:id/previous-service — most recent prior serviced ticket for the
+// same equipment, including its report. Lets the assigned technician review the
+// equipment's last service before starting. Returns null when there is no history.
+router.get("/:id/previous-service", async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const { role, companyId, clientId, userId } = req.user!;
+
+    const current = await prisma.ticket.findUnique({
+      where: { id: req.params.id },
+      select: { id: true, companyId: true, clientId: true, technicianId: true, equipmentId: true, createdAt: true },
+    });
+    if (!current) throw new Error("NOT_FOUND");
+    if (isAdminRole(role) && current.companyId !== companyId) throw new Error("FORBIDDEN");
+    if (role === Role.TECHNICIAN && current.technicianId !== userId) throw new Error("FORBIDDEN");
+    if (role === Role.CLIENT_USER && current.clientId !== clientId) throw new Error("FORBIDDEN");
+
+    // No equipment linked → no service history to compare against.
+    if (!current.equipmentId) {
+      res.json({ success: true, data: null });
+      return;
+    }
+
+    // The most recent *earlier* ticket for this equipment that already has a report.
+    const previous = await prisma.ticket.findFirst({
+      where: {
+        equipmentId: current.equipmentId,
+        companyId: current.companyId,
+        id: { not: current.id },
+        createdAt: { lt: current.createdAt },
+        report: { isNot: null },
+      },
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true,
+        title: true,
+        description: true,
+        status: true,
+        priority: true,
+        createdAt: true,
+        closedAt: true,
+        reportPdfUrl: true,
+        technician: { select: { id: true, name: true } },
+        branch: { select: { id: true, name: true } },
+        report: {
+          include: {
+            template: { include: { fields: { orderBy: { order: "asc" } } } },
+            spareParts: { include: { inventoryItem: { select: { id: true, name: true, unit: true } } } },
+          },
+        },
+      },
+    });
+
+    res.json({ success: true, data: previous });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // POST /api/tickets — admin or CLIENT_USER
 router.post("/", async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
@@ -243,9 +304,9 @@ router.post("/", async (req: AuthRequest, res: Response, next: NextFunction) => 
       if (monthlyCount >= limits.ticketMax) throw new Error("PLAN_LIMIT");
     }
 
-    // If admin assigns a technician at creation time, start as ASSIGNED
-    const initialStatus = isAdminRole(role) && body.technicianId ? "ASSIGNED" : "PENDING";
-
+    // Every ticket — admin- or client-created — enters the lifecycle as REQUESTED.
+    // The admin uploads a quotation, the client approves it, and only then is the
+    // ticket assigned to a technician.
     const ticket = await prisma.ticket.create({
       data: {
         title: body.title,
@@ -253,9 +314,8 @@ router.post("/", async (req: AuthRequest, res: Response, next: NextFunction) => 
         priority: body.priority,
         branchId: body.branchId,
         equipmentId: body.equipmentId,
-        technicianId: isAdminRole(role) ? body.technicianId : undefined,
         scheduledAt: body.scheduledAt ? new Date(body.scheduledAt) : undefined,
-        status: initialStatus,
+        status: "REQUESTED",
         clientId: resolvedClientId,
         companyId: resolvedCompanyId,
       },
@@ -265,7 +325,7 @@ router.post("/", async (req: AuthRequest, res: Response, next: NextFunction) => 
       },
     });
 
-    recordStatus(ticket.id, initialStatus, req.user!.userId);
+    recordStatus(ticket.id, "REQUESTED", req.user!.userId);
     res.status(201).json({ success: true, data: ticket });
   } catch (err) {
     next(err);
@@ -291,14 +351,109 @@ router.put("/:id", requireAdmin, async (req: AuthRequest, res: Response, next: N
   }
 });
 
-// PATCH /api/tickets/:id/assign — admin assigns a technician (PENDING → ASSIGNED)
+// PATCH /api/tickets/:id/quotation — admin uploads/updates the quotation document (REQUESTED only)
+router.patch("/:id/quotation", requireAdmin, async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const { quotationDocument } = z.object({ quotationDocument: z.string().url() }).parse(req.body);
+
+    const ticket = await prisma.ticket.findFirst({ where: { id: req.params.id, companyId: req.user!.companyId! } });
+    if (!ticket) throw new Error("NOT_FOUND");
+    if (ticket.status !== "REQUESTED") {
+      res.status(422).json({ success: false, message: "Solo se puede subir la cotización mientras el ticket está en estado Solicitado" });
+      return;
+    }
+
+    const updated = await prisma.ticket.update({
+      where: { id: req.params.id },
+      data: { quotationDocument },
+    });
+    res.json({ success: true, data: updated });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// PATCH /api/tickets/:id/send-quotation — admin sends the quotation for client approval (REQUESTED → PENDING_CLIENT_APPROVAL)
+router.patch("/:id/send-quotation", requireAdmin, async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const ticket = await prisma.ticket.findFirst({ where: { id: req.params.id, companyId: req.user!.companyId! } });
+    if (!ticket) throw new Error("NOT_FOUND");
+    if (ticket.status !== "REQUESTED") {
+      res.status(422).json({ success: false, message: "Solo tickets en estado Solicitado pueden enviarse a aprobación" });
+      return;
+    }
+    if (!ticket.quotationDocument) {
+      res.status(422).json({ success: false, message: "Sube la cotización antes de enviarla al cliente" });
+      return;
+    }
+
+    const updated = await prisma.ticket.update({
+      where: { id: req.params.id },
+      data: { status: "PENDING_CLIENT_APPROVAL" },
+    });
+
+    recordStatus(req.params.id, "PENDING_CLIENT_APPROVAL", req.user!.userId);
+
+    // Notify the client's portal users that a quotation awaits their approval.
+    const clientUsers = await prisma.user.findMany({
+      where: { clientId: ticket.clientId, isActive: true, role: "CLIENT_USER" },
+      select: { email: true },
+    });
+    const company = await prisma.company.findUnique({ where: { id: ticket.companyId }, select: { name: true } });
+
+    if (clientUsers.length) {
+      const frontendUrl = process.env.FRONTEND_URL ?? "http://localhost:3000";
+      sendApprovalRequestEmail({
+        to: clientUsers.map((u) => u.email),
+        ticketTitle: ticket.title,
+        documentUrl: ticket.quotationDocument,
+        companyName: company?.name ?? "deployr",
+        approvalUrl: `${frontendUrl}/client/tickets/${ticket.id}`,
+      }).catch(() => {}); // fire-and-forget
+    }
+
+    res.json({ success: true, data: updated });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// PATCH /api/tickets/:id/reject — admin or client rejects the quotation (PENDING_CLIENT_APPROVAL → REQUESTED)
+router.patch("/:id/reject", async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const { role, companyId, clientId } = req.user!;
+    if (!isAdminRole(role) && role !== "CLIENT_USER") throw new Error("FORBIDDEN");
+
+    const ticket = await prisma.ticket.findUnique({ where: { id: req.params.id } });
+    if (!ticket) throw new Error("NOT_FOUND");
+    if (isAdminRole(role) && ticket.companyId !== companyId) throw new Error("FORBIDDEN");
+    if (role === "CLIENT_USER" && ticket.clientId !== clientId) throw new Error("FORBIDDEN");
+    if (ticket.status !== "PENDING_CLIENT_APPROVAL") {
+      res.status(422).json({ success: false, message: "Solo se puede rechazar una cotización pendiente de aprobación" });
+      return;
+    }
+
+    // Send the ticket back so the admin can upload a revised quotation.
+    const updated = await prisma.ticket.update({
+      where: { id: req.params.id },
+      data: { status: "REQUESTED", quotationDocument: null },
+    });
+
+    recordStatus(req.params.id, "REQUESTED", req.user!.userId);
+    res.json({ success: true, data: updated });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// PATCH /api/tickets/:id/assign — admin assigns a technician (PENDING_ASSIGN → ASSIGNED)
 router.patch("/:id/assign", requireAdmin, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const body = assignSchema.parse(req.body);
     const ticket = await prisma.ticket.findFirst({ where: { id: req.params.id, companyId: req.user!.companyId! } });
     if (!ticket) throw new Error("NOT_FOUND");
-    if (ticket.status !== "PENDING") {
-      res.status(422).json({ success: false, message: "Solo se pueden asignar tickets en estado Pendiente" });
+    if (ticket.status !== "PENDING_ASSIGN") {
+      res.status(422).json({ success: false, message: "Solo se pueden asignar tickets en estado Por asignar" });
       return;
     }
 
@@ -439,7 +594,7 @@ router.patch("/:id/close", requireAdmin, async (req: AuthRequest, res: Response,
       return;
     }
 
-    const report = await (prisma.ticketReport as any).findUnique({
+    const report = await prisma.ticketReport.findUnique({
       where: { ticketId: req.params.id },
       include: { spareParts: true },
     });
@@ -453,20 +608,23 @@ router.patch("/:id/close", requireAdmin, async (req: AuthRequest, res: Response,
 
     recordStatus(req.params.id, "CLOSED", req.user!.userId);
 
-    // Generate PDF report asynchronously — fire and forget
-    generateTicketPdf(req.params.id)
-      .then((url) => {
-        if (url) {
-          return (prisma.ticket as any).update({
-            where: { id: req.params.id },
-            data: { reportPdfUrl: url },
-          });
-        }
-      })
-      .catch((err: unknown) => console.error("[pdf-report] background error:", err));
+    // Generate the PDF report and persist its URL. This is awaited rather than
+    // fire-and-forget because on serverless (Vercel) any work kicked off after
+    // the response is sent is not guaranteed to run — the function may freeze.
+    try {
+      const url = await generateTicketPdf(req.params.id);
+      if (url) {
+        await prisma.ticket.update({
+          where: { id: req.params.id },
+          data: { reportPdfUrl: url },
+        });
+      }
+    } catch (err) {
+      console.error("[pdf-report] generation error:", err);
+    }
 
     if (needsFollowUp) {
-      await (prisma.ticket as any).create({
+      await prisma.ticket.create({
         data: {
           title: `[Repuestos] ${ticket.title}`,
           description: `Seguimiento para instalación de repuestos requeridos en: ${ticket.title}`,
@@ -499,7 +657,7 @@ router.patch("/:id/submit-review", requireAdmin, async (req: AuthRequest, res: R
       return;
     }
 
-    const updated = await (prisma.ticket as any).update({
+    const updated = await prisma.ticket.update({
       where: { id: req.params.id },
       data: { status: "PENDING_APPROVAL", reviewDocument },
     });
@@ -530,7 +688,9 @@ router.patch("/:id/submit-review", requireAdmin, async (req: AuthRequest, res: R
   }
 });
 
-// PATCH /api/tickets/:id/approve — admin or client approves (PENDING_APPROVAL → PENDING)
+// PATCH /api/tickets/:id/approve — admin or client approves, moving the ticket to PENDING_ASSIGN.
+// Handles both the quotation approval (PENDING_CLIENT_APPROVAL) and the spare-parts
+// follow-up review approval (PENDING_APPROVAL).
 router.patch("/:id/approve", async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const { role, companyId, clientId } = req.user!;
@@ -540,34 +700,46 @@ router.patch("/:id/approve", async (req: AuthRequest, res: Response, next: NextF
     if (!ticket) throw new Error("NOT_FOUND");
     if (isAdminRole(role) && ticket.companyId !== companyId) throw new Error("FORBIDDEN");
     if (role === "CLIENT_USER" && ticket.clientId !== clientId) throw new Error("FORBIDDEN");
-    if (ticket.status !== "PENDING_APPROVAL") {
+    if (ticket.status !== "PENDING_CLIENT_APPROVAL" && ticket.status !== "PENDING_APPROVAL") {
       res.status(422).json({ success: false, message: "Solo tickets en aprobación pendiente pueden aprobarse" });
       return;
     }
 
     const updated = await prisma.ticket.update({
       where: { id: req.params.id },
-      data: { status: "PENDING" },
+      data: { status: "PENDING_ASSIGN" },
     });
 
-    recordStatus(req.params.id, "PENDING", req.user!.userId);
+    recordStatus(req.params.id, "PENDING_ASSIGN", req.user!.userId);
 
     // Deduct spare parts from inventory when the follow-up ticket is approved
-    if ((ticket as any).parentTicketId) {
-      const parentReport = await (prisma.ticketReport as any).findUnique({
-        where: { ticketId: (ticket as any).parentTicketId },
+    if (ticket.parentTicketId) {
+      const parentReport = await prisma.ticketReport.findUnique({
+        where: { ticketId: ticket.parentTicketId },
         include: { spareParts: true },
       });
 
       if (parentReport?.spareParts?.length) {
+        // The `quantity: { gte }` guard prevents negative stock, but means an
+        // under-stocked item is silently skipped. Capture those so the shortfall
+        // is at least visible in logs instead of vanishing.
+        const shortfalls: string[] = [];
         await Promise.all(
           parentReport.spareParts.map(async (sp: { inventoryItemId: string; quantity: number }) => {
-            await prisma.inventoryItem.updateMany({
+            const result = await prisma.inventoryItem.updateMany({
               where: { id: sp.inventoryItemId, quantity: { gte: sp.quantity } },
               data: { quantity: { decrement: sp.quantity } },
             });
+            if (result.count === 0) {
+              shortfalls.push(`${sp.inventoryItemId} (needed ${sp.quantity})`);
+            }
           })
         );
+        if (shortfalls.length) {
+          console.warn(
+            `[ticket ${req.params.id}] spare parts not deducted (insufficient/missing stock): ${shortfalls.join(", ")}`
+          );
+        }
       }
     }
 

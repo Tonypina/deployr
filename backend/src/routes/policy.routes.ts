@@ -96,7 +96,7 @@ router.get("/", async (req: AuthRequest, res: Response, next: NextFunction) => {
   }
 });
 
-// GET /api/policies/upcoming-tickets — PENDING policy tickets in the next 90 days
+// GET /api/policies/upcoming-tickets — unassigned policy tickets in the next 90 days
 router.get("/upcoming-tickets", async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const { role, companyId, clientId } = req.user!;
@@ -109,7 +109,7 @@ router.get("/upcoming-tickets", async (req: AuthRequest, res: Response, next: Ne
 
     const where: Record<string, unknown> = {
       policyId: { not: null },
-      status: "PENDING",
+      status: "PENDING_ASSIGN",
       scheduledAt: { gte: now, lte: horizon },
     };
 
@@ -220,7 +220,9 @@ router.post("/", requireAdmin, async (req: AuthRequest, res: Response, next: Nex
         const scheduledAt = addMonths(startDate, i * months);
         ticketData.push({
           title: `${body.name} - ${pe.equipment.name}`,
-          status: TicketStatus.PENDING,
+          // Policy tickets are pre-paid under contract, so they skip the
+          // quotation/approval flow and go straight to assignment.
+          status: TicketStatus.PENDING_ASSIGN,
           priority: Priority.HIGH,
           scheduledAt,
           policyId: policy.id,
@@ -280,7 +282,7 @@ router.patch("/:id/cancel", requireAdmin, async (req: AuthRequest, res: Response
       prisma.ticket.updateMany({
         where: {
           policyId: req.params.id as string,
-          status: { in: ["PENDING", "ASSIGNED", "IN_PROGRESS"] },
+          status: { in: ["PENDING_ASSIGN", "ASSIGNED", "ON_SITE", "IN_PROGRESS", "PENDING_REPORT"] },
         },
         data: { status: "CANCELLED" },
       }),

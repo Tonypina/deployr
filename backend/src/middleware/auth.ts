@@ -54,7 +54,15 @@ export async function requireActiveSubscription(
       select: { status: true, trialEndsAt: true, stripeSubscriptionId: true },
     });
 
-    if (!sub) { next(); return; }
+    // Registration always provisions a trial subscription, so a missing row means
+    // the company is unprovisioned — deny rather than fail open (previously next()).
+    if (!sub) {
+      res.status(402).json({
+        success: false,
+        message: "Tu suscripción ha expirado. Activa un plan para continuar.",
+      });
+      return;
+    }
 
     const now = new Date();
     const valid =

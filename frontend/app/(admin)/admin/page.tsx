@@ -35,7 +35,7 @@ export default function AdminDashboard() {
   const { technicians, loading: techsLoading } = useTechnicians({ limit: 100 });
   const loading = ticketsLoading || clientsLoading || inventoryLoading;
 
-  const openTickets = allTickets.filter((t) => ["PENDING", "ASSIGNED", "ON_SITE", "IN_PROGRESS", "PENDING_REPORT"].includes(t.status)).length;
+  const openTickets = allTickets.filter((t) => ["REQUESTED", "PENDING_CLIENT_APPROVAL", "PENDING_ASSIGN", "ASSIGNED", "ON_SITE", "IN_PROGRESS", "PENDING_REPORT"].includes(t.status)).length;
   const lowStockItems = inventory.filter((i) => i.minStock != null && i.quantity <= i.minStock);
   void clients;
 

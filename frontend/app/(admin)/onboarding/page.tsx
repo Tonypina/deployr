@@ -304,7 +304,7 @@ export default function OnboardingPage() {
               onSuccess={(id) => { setSaving(false); markDone(5); setCreatedTechId(id); saveProgress(6); setCurrentStep(6); }} />
           )}
           {currentStep === 6 && (
-            <Step6Form saving={saving} setSaving={setSaving} clientId={createdClientId} techId={createdTechId}
+            <Step6Form saving={saving} setSaving={setSaving} clientId={createdClientId}
               onSuccess={() => { setSaving(false); markDone(6); saveProgress(7); setCurrentStep(7); }}
               onSkip={() => { saveProgress(7); setCurrentStep(7); }} />
           )}
@@ -740,9 +740,9 @@ function Step5Form({ saving, setSaving, onSuccess }: {
 
 // ── Step 6: First ticket ──────────────────────────────────────────────────────
 
-function Step6Form({ saving, setSaving, clientId, techId, onSuccess, onSkip }: {
+function Step6Form({ saving, setSaving, clientId, onSuccess, onSkip }: {
   saving: boolean; setSaving: (v: boolean) => void;
-  clientId: string | null; techId: string | null; onSuccess: () => void; onSkip: () => void;
+  clientId: string | null; onSuccess: () => void; onSkip: () => void;
 }) {
   const { register, handleSubmit, formState: { errors } } = useForm<Step6Values>({
     resolver: zodResolver(step6Schema),
@@ -757,7 +757,6 @@ function Step6Form({ saving, setSaving, clientId, techId, onSuccess, onSkip }: {
         description: data.description || undefined,
         priority: data.priority,
         clientId: clientId ?? undefined,
-        technicianId: techId ?? undefined,
       });
       onSuccess();
     } catch (e) {

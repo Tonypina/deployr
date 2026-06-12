@@ -12,7 +12,9 @@ export function formatDate(date: string | Date | undefined | null): string {
 }
 
 export const statusLabel: Record<TicketStatus, string> = {
-  PENDING: "Pendiente",
+  REQUESTED: "Solicitado",
+  PENDING_CLIENT_APPROVAL: "Aprobación del cliente",
+  PENDING_ASSIGN: "Por asignar",
   ASSIGNED: "Asignado",
   ON_SITE: "En sitio",
   IN_PROGRESS: "En progreso",
@@ -27,7 +29,9 @@ export const statusLabel: Record<TicketStatus, string> = {
 };
 
 export const statusColor: Record<TicketStatus, string> = {
-  PENDING: "bg-yellow-500/15 text-yellow-300",
+  REQUESTED: "bg-yellow-500/15 text-yellow-300",
+  PENDING_CLIENT_APPROVAL: "bg-amber-500/15 text-amber-300",
+  PENDING_ASSIGN: "bg-sky-500/15 text-sky-300",
   ASSIGNED: "bg-blue-500/15 text-blue-300",
   ON_SITE: "bg-cyan-500/15 text-cyan-300",
   IN_PROGRESS: "bg-orange-500/15 text-orange-300",

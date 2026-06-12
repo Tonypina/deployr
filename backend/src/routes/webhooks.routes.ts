@@ -1,41 +1,30 @@
 import { Router, Request, Response, NextFunction } from "express";
 import { prisma } from "../lib/prisma";
-import { constructWebhookEvent, PlanTier } from "../utils/stripe";
-
-type SubscriptionStatus = "TRIALING" | "ACTIVE" | "PAST_DUE" | "CANCELLED" | "PAUSED";
+import {
+  constructWebhookEvent,
+  subscriptionPeriod,
+  planFromPriceId,
+  stripeStatusToLocal,
+} from "../utils/stripe";
 
 const router = Router();
 
-function tsToDate(ts: number | null | undefined): Date | undefined {
-  return ts ? new Date(ts * 1000) : undefined;
+// Records the event id and returns false. If the id already exists (unique
+// violation) it returns true → the event is a duplicate delivery and is skipped.
+// Degrades to false if the dedup table hasn't been migrated yet, so webhook
+// handling never regresses. The `as any` is temporary until `prisma generate`
+// runs against the new ProcessedWebhookEvent model.
+async function alreadyProcessed(eventId: string, type: string): Promise<boolean> {
+  try {
+    await (prisma as any).processedWebhookEvent.create({ data: { id: eventId, type } });
+    return false;
+  } catch (err: any) {
+    if (err?.code === "P2002") return true; // duplicate primary key
+    console.error("[webhooks] idempotency check skipped:", err?.message ?? err);
+    return false;
+  }
 }
 
-// Map Stripe price IDs → PlanTier (read from env)
-function planFromPriceId(priceId: string): PlanTier {
-  const map: Record<string, PlanTier> = {
-    [process.env.STRIPE_PRICE_BASICO_MONTHLY      ?? "__"]: "BASICO",
-    [process.env.STRIPE_PRICE_BASICO_ANNUAL       ?? "__"]: "BASICO",
-    [process.env.STRIPE_PRICE_INICIADOR_MONTHLY   ?? "__"]: "INICIADOR",
-    [process.env.STRIPE_PRICE_INICIADOR_ANNUAL    ?? "__"]: "INICIADOR",
-    [process.env.STRIPE_PRICE_PROFESIONAL_MONTHLY ?? "__"]: "PROFESIONAL",
-    [process.env.STRIPE_PRICE_PROFESIONAL_ANNUAL  ?? "__"]: "PROFESIONAL",
-  };
-  return map[priceId] ?? "BASICO";
-}
-
-function stripeStatusToLocal(status: string): SubscriptionStatus {
-  const map: Record<string, SubscriptionStatus> = {
-    trialing:           "TRIALING",
-    active:             "ACTIVE",
-    past_due:           "PAST_DUE",
-    canceled:           "CANCELLED",
-    paused:             "PAUSED",
-    incomplete:         "PAST_DUE",
-    incomplete_expired: "CANCELLED",
-    unpaid:             "PAST_DUE",
-  };
-  return map[status] ?? "ACTIVE";
-}
 
 // ── POST /api/webhooks/stripe ──────────────────────────────────────────────
 // express.raw() is applied at the app level for this path — see app.ts
@@ -51,6 +40,12 @@ router.post("/stripe", async (req: Request, res: Response, next: NextFunction) =
     event = constructWebhookEvent(req.body as Buffer, sig);
   } catch (err) {
     res.status(400).json({ error: `Webhook signature verification failed: ${(err as Error).message}` });
+    return;
+  }
+
+  // Idempotency: skip events we've already processed (Stripe retries deliveries).
+  if (await alreadyProcessed(event.id, event.type)) {
+    res.json({ received: true, duplicate: true });
     return;
   }
 
@@ -71,10 +66,7 @@ router.post("/stripe", async (req: Request, res: Response, next: NextFunction) =
         const priceId = stripeSub.items.data[0]?.price?.id ?? "";
         const plan = planFromPriceId(priceId);
 
-        const periodData = {
-          currentPeriodStart: tsToDate(stripeSub.current_period_start),
-          currentPeriodEnd:   tsToDate(stripeSub.current_period_end),
-        };
+        const periodData = subscriptionPeriod(stripeSub);
         await prisma.subscription.upsert({
           where: { companyId },
           create: {
@@ -112,8 +104,7 @@ router.post("/stripe", async (req: Request, res: Response, next: NextFunction) =
             plan:               planFromPriceId(priceId),
             status:             stripeStatusToLocal(stripeSub.status),
             stripePriceId:      priceId,
-            currentPeriodStart: tsToDate(stripeSub.current_period_start),
-            currentPeriodEnd:   tsToDate(stripeSub.current_period_end),
+            ...subscriptionPeriod(stripeSub),
             cancelledAt:        stripeSub.canceled_at ? new Date(stripeSub.canceled_at * 1000) : null,
           },
         });

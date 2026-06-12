@@ -40,7 +40,9 @@ enum FieldType {
 }
 
 enum TicketStatus {
-  PENDING
+  REQUESTED
+  PENDING_CLIENT_APPROVAL
+  PENDING_ASSIGN
   ASSIGNED
   ON_SITE
   IN_PROGRESS
@@ -253,7 +255,7 @@ model Ticket {
   id          String       @id @default(cuid())
   title       String
   description String?
-  status      TicketStatus @default(PENDING)
+  status      TicketStatus @default(REQUESTED)
   priority    Priority     @default(MEDIUM)
   scheduledAt DateTime?
   startedAt   DateTime?
@@ -279,8 +281,9 @@ model Ticket {
   policyId String?
   policy   Policy? @relation(fields: [policyId], references: [id], onDelete: SetNull)
 
-  reviewDocument String?
-  reportPdfUrl   String?
+  reviewDocument    String?
+  quotationDocument String?
+  reportPdfUrl      String?
   parentTicketId String?
   parentTicket   Ticket?  @relation("FollowUp", fields: [parentTicketId], references: [id])
   followUps      Ticket[] @relation("FollowUp")
@@ -447,4 +450,12 @@ model Plan {
   sortOrder       Int      @default(0)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+}
+
+// Stripe webhook idempotency: one row per processed event id.
+// A duplicate delivery hits the unique primary key and is skipped.
+model ProcessedWebhookEvent {
+  id          String   @id // the Stripe event id (evt_...)
+  type        String
+  processedAt DateTime @default(now())
 }

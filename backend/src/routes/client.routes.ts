@@ -2,17 +2,18 @@ import { Router, Response, NextFunction } from "express";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
+import { TicketStatus } from "@prisma/client";
 import { authenticate, requireAdmin } from "../middleware/auth";
 import { AuthRequest, paginate } from "../types";
 import { encrypt, decrypt, encryptField, decryptField } from "../utils/encryption";
 import { getPlanLimits } from "../utils/plan-limits";
-import { clean, cleanEmail, cleanOpt } from "../utils/sanitize";
+import { clean, cleanEmail, cleanOpt, cleanOptNull } from "../utils/sanitize";
 
 const router = Router();
 
 const clientSchema = z.object({
   name:         z.string().min(2).transform(clean),
-  giro:         z.string().optional().nullable().transform(cleanOpt),
+  giro:         z.string().optional().nullable().transform(cleanOptNull),
   contactEmail: z.string().email().transform(cleanEmail),
   contactPhone: z.string().optional().transform(cleanOpt),
   taxId:        z.string().optional().transform(cleanOpt),
@@ -59,14 +60,14 @@ function decryptClient(client: {
 router.get("/stats", authenticate, requireAdmin, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const companyId = req.user!.companyId!;
-    const ACTIVE = ["PENDING", "ASSIGNED", "ON_SITE", "IN_PROGRESS", "PENDING_REPORT"];
+    const ACTIVE: TicketStatus[] = ["REQUESTED", "PENDING_CLIENT_APPROVAL", "PENDING_ASSIGN", "ASSIGNED", "ON_SITE", "IN_PROGRESS", "PENDING_REPORT"];
 
     const [total, branches, equipment, active] = await prisma.$transaction([
       prisma.client.count({ where: { companyId } }),
       prisma.branch.count({ where: { client: { companyId } } }),
       prisma.equipment.count({ where: { branch: { client: { companyId } } } }),
       prisma.client.count({
-        where: { companyId, tickets: { some: { status: { in: ACTIVE as any } } } },
+        where: { companyId, tickets: { some: { status: { in: ACTIVE } } } },
       }),
     ]);
 

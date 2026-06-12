@@ -9,7 +9,6 @@ import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
 import { Branch, Equipment } from "@/lib/types";
 import { useClients } from "@/lib/hooks/use-clients";
-import { useTechnicians } from "@/lib/hooks/use-technicians";
 import { getBranches, getEquipment } from "@/lib/services/clients";
 import { createTicket } from "@/lib/services/tickets";
 import { Button } from "@/components/ui/button";
@@ -26,7 +25,6 @@ const schema = z.object({
   clientId: z.string().min(1, "Selecciona un cliente"),
   branchId: z.string().min(1, "Selecciona una sucursal"),
   equipmentId: z.string().min(1, "Selecciona un equipo"),
-  technicianId: z.string().optional(),
   scheduledAt: z.string().optional(),
 });
 
@@ -38,8 +36,6 @@ export default function NewTicketPage() {
   const [branches, setBranches] = useState<Branch[]>([]);
   const [equipments, setEquipments] = useState<Equipment[]>([]);
   const { clients } = useClients();
-  const { technicians: allTechnicians } = useTechnicians();
-  const technicians = allTechnicians.filter((t) => t.isActive);
 
   const {
     register,
@@ -88,7 +84,6 @@ export default function NewTicketPage() {
         clientId: data.clientId,
         branchId: data.branchId,
         equipmentId: data.equipmentId,
-        technicianId: data.technicianId || undefined,
         scheduledAt: data.scheduledAt ? new Date(data.scheduledAt).toISOString() : undefined,
       });
       toast({ title: "Ticket creado exitosamente" });
@@ -221,25 +216,9 @@ export default function NewTicketPage() {
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader><CardTitle className="text-base">Asignación</CardTitle></CardHeader>
-            <CardContent>
-              <div className="grid gap-2">
-                <Label htmlFor="technicianId">Técnico</Label>
-                <select
-                  id="technicianId"
-                  className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  {...register("technicianId")}
-                >
-                  <option value="">Sin asignar (Pendiente)</option>
-                  {technicians.map((t) => (
-                    <option key={t.id} value={t.id}>{t.name}</option>
-                  ))}
-                </select>
-                <p className="text-xs text-muted-foreground">Si asignas un técnico, el ticket inicia en estado Asignado.</p>
-              </div>
-            </CardContent>
-          </Card>
+          <p className="text-xs text-muted-foreground">
+            El ticket inicia en estado <span className="font-medium">Solicitado</span>. Sube la cotización y envíala al cliente para su aprobación antes de asignar un técnico.
+          </p>
 
           <div className="flex gap-3 justify-end">
             <Button variant="outline" type="button" asChild>
