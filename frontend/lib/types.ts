@@ -30,7 +30,7 @@ export interface Subscription {
 export type PolicyStatus = "ACTIVE" | "EXPIRED" | "CANCELLED";
 export type Recurrence = "MONTHLY" | "BIMONTHLY" | "QUARTERLY" | "SEMIANNUAL" | "ANNUAL";
 export type FieldType = "TEXT" | "TEXTAREA" | "DATE" | "NUMBER" | "PHOTO" | "MULTISELECT" | "SIGNATURE";
-export type TicketStatus = "PENDING" | "ASSIGNED" | "ON_SITE" | "IN_PROGRESS" | "PENDING_REPORT" | "COMPLETED" | "CLOSED" | "CANCELLED" | "EXPIRED" | "REVIEW" | "PENDING_APPROVAL" | "REOPENED";
+export type TicketStatus = "REQUESTED" | "PENDING_CLIENT_APPROVAL" | "PENDING_ASSIGN" | "ASSIGNED" | "ON_SITE" | "IN_PROGRESS" | "PENDING_REPORT" | "COMPLETED" | "CLOSED" | "CANCELLED" | "EXPIRED" | "REVIEW" | "PENDING_APPROVAL" | "REOPENED";
 export type Priority = "LOW" | "MEDIUM" | "HIGH" | "URGENT";
 
 export interface AuthUser {
@@ -180,6 +180,7 @@ export interface Ticket {
   equipmentId?: string;
   technicianId?: string;
   reviewDocument?: string | null;
+  quotationDocument?: string | null;
   reportPdfUrl?: string | null;
   parentTicketId?: string | null;
   client?: { id: string; name: string };
@@ -203,6 +204,20 @@ export interface TicketReport {
   clientSignature?: string;
   ticketId: string;
   createdAt: string;
+}
+
+export interface PreviousService {
+  id: string;
+  title: string;
+  description?: string | null;
+  status: TicketStatus;
+  priority: Priority;
+  createdAt: string;
+  closedAt?: string | null;
+  reportPdfUrl?: string | null;
+  technician?: { id: string; name: string } | null;
+  branch?: { id: string; name: string } | null;
+  report?: TicketReport | null;
 }
 
 export interface InventoryItem {

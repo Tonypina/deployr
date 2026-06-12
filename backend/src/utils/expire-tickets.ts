@@ -5,7 +5,7 @@ export async function expireOverdueTickets(): Promise<number> {
   const result = await prisma.ticket.updateMany({
     where: {
       scheduledAt: { lte: cutoff },
-      status: { in: ["PENDING", "ASSIGNED", "IN_PROGRESS"] },
+      status: { in: ["ASSIGNED", "IN_PROGRESS"] },
     },
     data: { status: "EXPIRED" },
   });

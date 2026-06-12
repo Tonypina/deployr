@@ -40,7 +40,9 @@ enum FieldType {
 }
 
 enum TicketStatus {
-  PENDING
+  REQUESTED
+  PENDING_CLIENT_APPROVAL
+  PENDING_ASSIGN
   ASSIGNED
   ON_SITE
   IN_PROGRESS
@@ -253,7 +255,7 @@ model Ticket {
   id          String       @id @default(cuid())
   title       String
   description String?
-  status      TicketStatus @default(PENDING)
+  status      TicketStatus @default(REQUESTED)
   priority    Priority     @default(MEDIUM)
   scheduledAt DateTime?
   startedAt   DateTime?
@@ -279,8 +281,9 @@ model Ticket {
   policyId String?
   policy   Policy? @relation(fields: [policyId], references: [id], onDelete: SetNull)
 
-  reviewDocument String?
-  reportPdfUrl   String?
+  reviewDocument    String?
+  quotationDocument String?
+  reportPdfUrl      String?
   parentTicketId String?
   parentTicket   Ticket?  @relation("FollowUp", fields: [parentTicketId], references: [id])
   followUps      Ticket[] @relation("FollowUp")

@@ -3,9 +3,9 @@
 import { useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { ChevronLeft, ThumbsUp, Download } from "lucide-react";
+import { ChevronLeft, ThumbsUp, Download, X } from "lucide-react";
 import { useTicket } from "@/lib/hooks/use-ticket";
-import { approveTicket } from "@/lib/services/tickets";
+import { approveTicket, rejectTicket } from "@/lib/services/tickets";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn, statusColor, statusLabel, priorityColor, priorityLabel, formatDate } from "@/lib/utils";
@@ -26,6 +26,7 @@ export default function ClientTicketDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { ticket, report, template, loading, setTicket } = useTicket(id);
   const [approving, setApproving] = useState(false);
+  const [rejecting, setRejecting] = useState(false);
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
 
   async function handleApprove() {
@@ -33,11 +34,24 @@ export default function ClientTicketDetailPage() {
     try {
       const updated = await approveTicket(id);
       setTicket(updated);
-      toast({ title: "Servicio aprobado", description: "El ticket continuará el proceso de instalación" });
+      toast({ title: "Aprobado", description: "El ticket continuará su proceso." });
     } catch (e) {
       toast({ variant: "destructive", title: "Error", description: (e as Error).message });
     } finally {
       setApproving(false);
+    }
+  }
+
+  async function handleReject() {
+    setRejecting(true);
+    try {
+      const updated = await rejectTicket(id);
+      setTicket(updated);
+      toast({ title: "Cotización rechazada", description: "Se notificará para una cotización revisada." });
+    } catch (e) {
+      toast({ variant: "destructive", title: "Error", description: (e as Error).message });
+    } finally {
+      setRejecting(false);
     }
   }
 
@@ -78,6 +92,36 @@ export default function ClientTicketDetailPage() {
           </div>
         </CardContent>
       </Card>
+
+      {ticket.status === "PENDING_CLIENT_APPROVAL" && (
+        <Card className="border-amber-200 bg-amber-50">
+          <CardContent className="pt-6">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="font-semibold text-amber-900">Cotización pendiente de aprobación</p>
+                <p className="text-sm text-amber-700 mt-0.5">
+                  Revisa la cotización del servicio y apruébala para continuar.{" "}
+                  {ticket.quotationDocument && (
+                    <a href={ticket.quotationDocument} target="_blank" rel="noopener noreferrer" className="underline font-medium">
+                      Ver cotización
+                    </a>
+                  )}
+                </p>
+              </div>
+              <div className="flex gap-2 shrink-0">
+                <Button onClick={handleReject} disabled={approving || rejecting} variant="outline" className="border-red-300 text-red-700 hover:bg-red-50">
+                  <X className="h-4 w-4 mr-1" />
+                  {rejecting ? "Rechazando..." : "Rechazar"}
+                </Button>
+                <Button onClick={handleApprove} disabled={approving || rejecting} className="bg-amber-600 hover:bg-amber-700">
+                  <ThumbsUp className="h-4 w-4 mr-1" />
+                  {approving ? "Aprobando..." : "Aprobar"}
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {ticket.status === "PENDING_APPROVAL" && (
         <Card className="border-amber-200 bg-amber-50">

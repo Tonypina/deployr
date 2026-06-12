@@ -60,7 +60,7 @@ function decryptClient(client: {
 router.get("/stats", authenticate, requireAdmin, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const companyId = req.user!.companyId!;
-    const ACTIVE: TicketStatus[] = ["PENDING", "ASSIGNED", "ON_SITE", "IN_PROGRESS", "PENDING_REPORT"];
+    const ACTIVE: TicketStatus[] = ["REQUESTED", "PENDING_CLIENT_APPROVAL", "PENDING_ASSIGN", "ASSIGNED", "ON_SITE", "IN_PROGRESS", "PENDING_REPORT"];
 
     const [total, branches, equipment, active] = await prisma.$transaction([
       prisma.client.count({ where: { companyId } }),

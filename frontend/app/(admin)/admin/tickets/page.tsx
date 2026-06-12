@@ -15,7 +15,7 @@ import { toast } from "@/hooks/use-toast";
 const PAGE_SIZE = 5;
 
 const ALL_STATUSES: TicketStatus[] = [
-  "PENDING", "ASSIGNED", "IN_PROGRESS", "REOPENED",
+  "REQUESTED", "PENDING_CLIENT_APPROVAL", "PENDING_ASSIGN", "ASSIGNED", "IN_PROGRESS", "REOPENED",
   "COMPLETED", "CLOSED", "CANCELLED", "EXPIRED", "REVIEW", "PENDING_APPROVAL",
 ];
 

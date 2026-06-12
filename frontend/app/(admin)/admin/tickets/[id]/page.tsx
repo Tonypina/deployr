@@ -9,7 +9,7 @@ import Link from "next/link";
 import { ChevronLeft, UserCheck, X, CheckCheck, FileText, Upload, ThumbsUp, RotateCcw, Pencil, MapPin, ClipboardList, Download } from "lucide-react";
 import { useTicket } from "@/lib/hooks/use-ticket";
 import { useTechnicians } from "@/lib/hooks/use-technicians";
-import { assignTicket, closeTicket as closeTicketService, cancelTicket as cancelTicketService, submitReview as submitReviewService, approveTicket as approveTicketService, reopenTicket as reopenTicketService } from "@/lib/services/tickets";
+import { assignTicket, closeTicket as closeTicketService, cancelTicket as cancelTicketService, submitReview as submitReviewService, approveTicket as approveTicketService, reopenTicket as reopenTicketService, setQuotation as setQuotationService, sendQuotation as sendQuotationService, rejectTicket as rejectTicketService } from "@/lib/services/tickets";
 import { updateReport as updateReportService } from "@/lib/services/reports";
 import { uploadPdf } from "@/lib/services/upload";
 import { Button } from "@/components/ui/button";
@@ -150,7 +150,49 @@ export default function AdminTicketDetailPage() {
     try {
       const updated = await approveTicketService(id);
       setTicket(updated);
-      toast({ title: "Ticket aprobado", description: "El ticket continúa el ciclo normal" });
+      toast({ title: "Aprobado", description: "El ticket pasó a Por asignar" });
+    } catch (e) {
+      toast({ variant: "destructive", title: "Error", description: (e as Error).message });
+    } finally {
+      setActing(false);
+    }
+  }
+
+  async function handleUploadQuotation() {
+    if (!pdfFile) return;
+    setUploadingPdf(true);
+    try {
+      const url = await uploadPdf(pdfFile);
+      const updated = await setQuotationService(id, url);
+      setTicket(updated);
+      setPdfFile(null);
+      toast({ title: "Cotización subida", description: "Revísala y envíala al cliente." });
+    } catch (e) {
+      toast({ variant: "destructive", title: "Error", description: (e as Error).message });
+    } finally {
+      setUploadingPdf(false);
+    }
+  }
+
+  async function handleSendQuotation() {
+    setActing(true);
+    try {
+      const updated = await sendQuotationService(id);
+      setTicket(updated);
+      toast({ title: "Cotización enviada", description: "Se notificó al cliente para su aprobación." });
+    } catch (e) {
+      toast({ variant: "destructive", title: "Error", description: (e as Error).message });
+    } finally {
+      setActing(false);
+    }
+  }
+
+  async function handleReject() {
+    setActing(true);
+    try {
+      const updated = await rejectTicketService(id);
+      setTicket(updated);
+      toast({ title: "Cotización rechazada", description: "El ticket volvió a Solicitado." });
     } catch (e) {
       toast({ variant: "destructive", title: "Error", description: (e as Error).message });
     } finally {
@@ -300,8 +342,93 @@ export default function AdminTicketDetailPage() {
         </Card>
       )}
 
-      {/* Assign technician — only when PENDING */}
-      {ticket.status === "PENDING" && (
+      {/* REQUESTED — upload quotation and send to client */}
+      {ticket.status === "REQUESTED" && (
+        <Card className="border-yellow-200 bg-yellow-50">
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2 text-yellow-900">
+              <FileText className="h-4 w-4" />Cotización del servicio
+            </CardTitle>
+            <p className="text-sm text-yellow-700 mt-0.5">
+              Sube la cotización (PDF) y envíala al cliente para su aprobación.
+            </p>
+          </CardHeader>
+          <CardContent className="grid gap-3">
+            {ticket.quotationDocument && (
+              <a
+                href={ticket.quotationDocument}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm underline text-yellow-900 w-fit inline-flex items-center gap-1"
+              >
+                <Download className="h-4 w-4" />Ver cotización subida
+              </a>
+            )}
+            <div className="grid gap-1.5">
+              <Label className="text-sm">{ticket.quotationDocument ? "Reemplazar cotización (PDF)" : "Cotización (PDF)"}</Label>
+              <input
+                type="file"
+                accept="application/pdf"
+                onChange={(e) => setPdfFile(e.target.files?.[0] ?? null)}
+                className="text-sm file:mr-3 file:rounded-md file:border-0 file:bg-yellow-100 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-yellow-900 hover:file:bg-yellow-200"
+              />
+              {pdfFile && <p className="text-xs text-muted-foreground">{pdfFile.name}</p>}
+            </div>
+            <div className="flex gap-2 flex-wrap">
+              <Button
+                onClick={handleUploadQuotation}
+                disabled={!pdfFile || uploadingPdf}
+                variant="outline"
+                className="border-yellow-300 text-yellow-800 hover:bg-yellow-100 w-fit"
+              >
+                <Upload className="h-4 w-4 mr-1" />
+                {uploadingPdf ? "Subiendo..." : "Subir cotización"}
+              </Button>
+              <Button
+                onClick={handleSendQuotation}
+                disabled={!ticket.quotationDocument || acting}
+                className="bg-yellow-700 hover:bg-yellow-800 w-fit"
+              >
+                <ThumbsUp className="h-4 w-4 mr-1" />
+                {acting ? "Enviando..." : "Enviar al cliente"}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* PENDING_CLIENT_APPROVAL — waiting for client to approve the quotation */}
+      {ticket.status === "PENDING_CLIENT_APPROVAL" && (
+        <Card className="border-amber-200 bg-amber-50">
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="font-semibold text-amber-900">Esperando aprobación del cliente</p>
+                <p className="text-sm text-amber-700 mt-0.5">
+                  Se envió la cotización al cliente.{" "}
+                  {ticket.quotationDocument && (
+                    <a href={ticket.quotationDocument} target="_blank" rel="noopener noreferrer" className="underline">
+                      Ver cotización
+                    </a>
+                  )}
+                </p>
+              </div>
+              <div className="flex gap-2 shrink-0">
+                <Button variant="outline" onClick={handleReject} disabled={acting} className="border-red-300 text-red-700 hover:bg-red-50">
+                  <X className="h-4 w-4 mr-1" />Rechazar
+                </Button>
+                <Button onClick={handleApprove} disabled={acting} className="bg-amber-600 hover:bg-amber-700">
+                  <ThumbsUp className="h-4 w-4 mr-1" />
+                  {acting ? "Aprobando..." : "Aprobar"}
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Assign technician — only when PENDING_ASSIGN */}
+      {ticket.status === "PENDING_ASSIGN" && (
         <Card>
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">

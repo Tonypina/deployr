@@ -1,5 +1,5 @@
 import { api } from "@/lib/api-client";
-import { Ticket } from "@/lib/types";
+import { Ticket, PreviousService } from "@/lib/types";
 
 export async function getTickets(params?: {
   status?: string;
@@ -34,6 +34,12 @@ export async function getTicket(id: string) {
   return res.data!;
 }
 
+// Most recent prior serviced ticket for the same equipment (with its report), or null.
+export async function getPreviousService(id: string) {
+  const res = await api.get<PreviousService | null>(`/api/tickets/${id}/previous-service`);
+  return res.data ?? null;
+}
+
 export async function createTicket(data: {
   title: string;
   description?: string;
@@ -41,10 +47,27 @@ export async function createTicket(data: {
   clientId?: string;
   branchId?: string;
   equipmentId?: string;
-  technicianId?: string;
   scheduledAt?: string;
 }) {
   const res = await api.post<Ticket>("/api/tickets", data);
+  return res.data!;
+}
+
+// Admin uploads/updates the quotation document while the ticket is REQUESTED.
+export async function setQuotation(id: string, quotationDocument: string) {
+  const res = await api.patch<Ticket>(`/api/tickets/${id}/quotation`, { quotationDocument });
+  return res.data!;
+}
+
+// Admin sends the quotation for client approval (REQUESTED → PENDING_CLIENT_APPROVAL).
+export async function sendQuotation(id: string) {
+  const res = await api.patch<Ticket>(`/api/tickets/${id}/send-quotation`, {});
+  return res.data!;
+}
+
+// Admin or client rejects the quotation (PENDING_CLIENT_APPROVAL → REQUESTED).
+export async function rejectTicket(id: string) {
+  const res = await api.patch<Ticket>(`/api/tickets/${id}/reject`, {});
   return res.data!;
 }
 
