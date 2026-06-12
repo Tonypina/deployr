@@ -1,12 +1,20 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-const PUBLIC_PATHS = ["/", "/login", "/register", "/pricing"];
+// Prefix-matched public sections (a path and anything beneath it).
+const PUBLIC_PREFIXES = ["/login", "/register", "/pricing", "/privacy", "/terms"];
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  if (PUBLIC_PATHS.some((p) => pathname.startsWith(p))) {
+  // NOTE: the previous implementation included "/" in this list and matched with
+  // `startsWith`, which is true for *every* path — so auth was never enforced.
+  // The root is matched exactly; everything else by section prefix.
+  const isPublic =
+    pathname === "/" ||
+    PUBLIC_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+
+  if (isPublic) {
     return NextResponse.next();
   }
 

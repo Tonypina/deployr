@@ -13,22 +13,19 @@ export function errorHandler(err: unknown, _req: Request, res: Response, _next: 
     return;
   }
 
+  // Control-flow signals thrown by route handlers — these are expected outcomes,
+  // not failures, so they map to a status without being logged as errors.
+  const CONTROL_ERRORS: Record<string, { status: number; message: string }> = {
+    NOT_FOUND:  { status: 404, message: "Resource not found" },
+    FORBIDDEN:  { status: 403, message: "Insufficient permissions" },
+    CONFLICT:   { status: 409, message: "Resource already exists" },
+    PLAN_LIMIT: { status: 402, message: "Límite del plan alcanzado. Actualiza tu plan para continuar." },
+  };
+
   if (err instanceof Error) {
-    console.error(err.message);
-    if (err.message === "NOT_FOUND") {
-      res.status(404).json({ success: false, message: "Resource not found" });
-      return;
-    }
-    if (err.message === "FORBIDDEN") {
-      res.status(403).json({ success: false, message: "Insufficient permissions" });
-      return;
-    }
-    if (err.message === "CONFLICT") {
-      res.status(409).json({ success: false, message: "Resource already exists" });
-      return;
-    }
-    if (err.message === "PLAN_LIMIT") {
-      res.status(402).json({ success: false, message: "Límite del plan alcanzado. Actualiza tu plan para continuar." });
+    const known = CONTROL_ERRORS[err.message];
+    if (known) {
+      res.status(known.status).json({ success: false, message: known.message });
       return;
     }
   }

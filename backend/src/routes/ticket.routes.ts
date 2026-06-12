@@ -3,7 +3,7 @@ import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { authenticate, requireAdmin, requireAdminOrTech } from "../middleware/auth";
 import { AuthRequest, paginate } from "../types";
-import { Role } from "@prisma/client";
+import { Role, TicketStatus } from "@prisma/client";
 import { getPlanLimits } from "../utils/plan-limits";
 import { expireOverdueTickets } from "../utils/expire-tickets";
 import { sendApprovalRequestEmail } from "../utils/email";
@@ -14,10 +14,12 @@ const router = Router();
 
 const isAdminRole = (role: string) => role === Role.ADMIN || role === Role.SUPER_ADMIN;
 
-function recordStatus(ticketId: string, status: string, userId?: string) {
-  (prisma.ticketStatusHistory as any)
+function recordStatus(ticketId: string, status: TicketStatus, userId?: string) {
+  prisma.ticketStatusHistory
     .create({ data: { ticketId, status, changedBy: userId ?? null } })
-    .catch(() => {});
+    .catch((err: unknown) =>
+      console.error(`[ticket] failed to record status ${status} for ${ticketId}:`, err)
+    );
 }
 
 const createSchema = z.object({
@@ -47,10 +49,12 @@ router.use(authenticate);
 
 // GET /api/tickets — filtered by role
 router.get("/", async (req: AuthRequest, res: Response, next: NextFunction) => {
-  // Expire overdue tickets on every list fetch (fire-and-forget)
-  expireOverdueTickets().catch(() => {});
-
   try {
+    // Expire overdue tickets before listing. Awaited (not fire-and-forget) so it
+    // actually runs on serverless; its own errors are logged and never break the
+    // list. A scheduled job would be better, but this keeps the data consistent.
+    await expireOverdueTickets().catch((e) => console.error("[tickets] expire failed:", e));
+
     const {
       status, priority, year, page = "1", limit = "20",
       search,
@@ -439,7 +443,7 @@ router.patch("/:id/close", requireAdmin, async (req: AuthRequest, res: Response,
       return;
     }
 
-    const report = await (prisma.ticketReport as any).findUnique({
+    const report = await prisma.ticketReport.findUnique({
       where: { ticketId: req.params.id },
       include: { spareParts: true },
     });
@@ -453,20 +457,23 @@ router.patch("/:id/close", requireAdmin, async (req: AuthRequest, res: Response,
 
     recordStatus(req.params.id, "CLOSED", req.user!.userId);
 
-    // Generate PDF report asynchronously — fire and forget
-    generateTicketPdf(req.params.id)
-      .then((url) => {
-        if (url) {
-          return (prisma.ticket as any).update({
-            where: { id: req.params.id },
-            data: { reportPdfUrl: url },
-          });
-        }
-      })
-      .catch((err: unknown) => console.error("[pdf-report] background error:", err));
+    // Generate the PDF report and persist its URL. This is awaited rather than
+    // fire-and-forget because on serverless (Vercel) any work kicked off after
+    // the response is sent is not guaranteed to run — the function may freeze.
+    try {
+      const url = await generateTicketPdf(req.params.id);
+      if (url) {
+        await prisma.ticket.update({
+          where: { id: req.params.id },
+          data: { reportPdfUrl: url },
+        });
+      }
+    } catch (err) {
+      console.error("[pdf-report] generation error:", err);
+    }
 
     if (needsFollowUp) {
-      await (prisma.ticket as any).create({
+      await prisma.ticket.create({
         data: {
           title: `[Repuestos] ${ticket.title}`,
           description: `Seguimiento para instalación de repuestos requeridos en: ${ticket.title}`,
@@ -499,7 +506,7 @@ router.patch("/:id/submit-review", requireAdmin, async (req: AuthRequest, res: R
       return;
     }
 
-    const updated = await (prisma.ticket as any).update({
+    const updated = await prisma.ticket.update({
       where: { id: req.params.id },
       data: { status: "PENDING_APPROVAL", reviewDocument },
     });
@@ -553,21 +560,33 @@ router.patch("/:id/approve", async (req: AuthRequest, res: Response, next: NextF
     recordStatus(req.params.id, "PENDING", req.user!.userId);
 
     // Deduct spare parts from inventory when the follow-up ticket is approved
-    if ((ticket as any).parentTicketId) {
-      const parentReport = await (prisma.ticketReport as any).findUnique({
-        where: { ticketId: (ticket as any).parentTicketId },
+    if (ticket.parentTicketId) {
+      const parentReport = await prisma.ticketReport.findUnique({
+        where: { ticketId: ticket.parentTicketId },
         include: { spareParts: true },
       });
 
       if (parentReport?.spareParts?.length) {
+        // The `quantity: { gte }` guard prevents negative stock, but means an
+        // under-stocked item is silently skipped. Capture those so the shortfall
+        // is at least visible in logs instead of vanishing.
+        const shortfalls: string[] = [];
         await Promise.all(
           parentReport.spareParts.map(async (sp: { inventoryItemId: string; quantity: number }) => {
-            await prisma.inventoryItem.updateMany({
+            const result = await prisma.inventoryItem.updateMany({
               where: { id: sp.inventoryItemId, quantity: { gte: sp.quantity } },
               data: { quantity: { decrement: sp.quantity } },
             });
+            if (result.count === 0) {
+              shortfalls.push(`${sp.inventoryItemId} (needed ${sp.quantity})`);
+            }
           })
         );
+        if (shortfalls.length) {
+          console.warn(
+            `[ticket ${req.params.id}] spare parts not deducted (insufficient/missing stock): ${shortfalls.join(", ")}`
+          );
+        }
       }
     }
 

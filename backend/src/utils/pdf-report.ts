@@ -158,7 +158,7 @@ function guardPage(doc: Doc, y: number, needed: number): number {
 export async function generateTicketPdf(ticketId: string): Promise<string | null> {
   try {
     // Fetch all data the PDF needs
-    const ticket = await (prisma.ticket as any).findUnique({
+    const ticket = await prisma.ticket.findUnique({
       where: { id: ticketId },
       include: {
         company: true,
@@ -263,7 +263,7 @@ export async function generateTicketPdf(ticketId: string): Promise<string | null
           w: CW / 3,
         },
         { label: "ID INCIDENCIA", value: "", w: CW / 3 },
-        { label: "FOLIO", value: (report as any).folio ?? "—", w: CW / 3 },
+        { label: "FOLIO", value: report.folio ?? "—", w: CW / 3 },
       ],
       y,
       28,

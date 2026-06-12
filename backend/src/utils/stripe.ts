@@ -1,4 +1,5 @@
 import Stripe from "stripe";
+import { SubscriptionStatus } from "@prisma/client";
 
 if (!process.env.STRIPE_SECRET_KEY) {
   console.warn("[stripe] STRIPE_SECRET_KEY not set — billing features disabled");
@@ -69,6 +70,38 @@ export function getPriceId(plan: "BASICO" | "INICIADOR" | "PROFESIONAL", annual:
   return annual ? STRIPE_PRICES[plan].annual : STRIPE_PRICES[plan].monthly;
 }
 
+// Map a Stripe price id → PlanTier using the env-configured price ids.
+// Unknown price ids fall back to the cheapest plan (least privilege) and warn,
+// rather than silently granting a higher tier.
+export function planFromPriceId(priceId: string): PlanTier {
+  const map: Record<string, PlanTier> = {
+    [process.env.STRIPE_PRICE_BASICO_MONTHLY      ?? "__"]: "BASICO",
+    [process.env.STRIPE_PRICE_BASICO_ANNUAL       ?? "__"]: "BASICO",
+    [process.env.STRIPE_PRICE_INICIADOR_MONTHLY   ?? "__"]: "INICIADOR",
+    [process.env.STRIPE_PRICE_INICIADOR_ANNUAL    ?? "__"]: "INICIADOR",
+    [process.env.STRIPE_PRICE_PROFESIONAL_MONTHLY ?? "__"]: "PROFESIONAL",
+    [process.env.STRIPE_PRICE_PROFESIONAL_ANNUAL  ?? "__"]: "PROFESIONAL",
+  };
+  const plan = map[priceId];
+  if (!plan) console.warn(`[stripe] unknown price id "${priceId}" — defaulting to BASICO`);
+  return plan ?? "BASICO";
+}
+
+// Map a Stripe subscription status string → local SubscriptionStatus enum.
+export function stripeStatusToLocal(status: string): SubscriptionStatus {
+  const map: Record<string, SubscriptionStatus> = {
+    trialing:           "TRIALING",
+    active:             "ACTIVE",
+    past_due:           "PAST_DUE",
+    canceled:           "CANCELLED",
+    paused:             "PAUSED",
+    incomplete:         "PAST_DUE",
+    incomplete_expired: "CANCELLED",
+    unpaid:             "PAST_DUE",
+  };
+  return map[status] ?? "ACTIVE";
+}
+
 export async function createStripeCustomer(email: string, companyName: string, companyId: string) {
   if (!stripe) throw new Error("Stripe not configured");
   return stripe.customers.create({
@@ -114,6 +147,22 @@ export async function createBillingPortalSession(customerId: string, returnUrl: 
     customer: customerId,
     return_url: returnUrl,
   });
+}
+
+// In API version 2026-05-27.dahlia the billing period moved from the
+// Subscription object onto each SubscriptionItem. Read it from the first item.
+export function subscriptionPeriod(sub: {
+  items?: { data?: Array<{ current_period_start?: number | null; current_period_end?: number | null }> };
+}): {
+  currentPeriodStart: Date | undefined;
+  currentPeriodEnd: Date | undefined;
+} {
+  const item = sub.items?.data?.[0];
+  const toDate = (ts?: number | null) => (ts ? new Date(ts * 1000) : undefined);
+  return {
+    currentPeriodStart: toDate(item?.current_period_start),
+    currentPeriodEnd: toDate(item?.current_period_end),
+  };
 }
 
 export function constructWebhookEvent(payload: Buffer, signature: string) {

@@ -6,7 +6,7 @@ import { authenticate, requireAdmin } from "../middleware/auth";
 import { AuthRequest, paginate } from "../types";
 import { Role } from "@prisma/client";
 import { getPlanLimits } from "../utils/plan-limits";
-import { clean, cleanEmail, cleanOpt } from "../utils/sanitize";
+import { clean, cleanEmail, cleanOpt, cleanOptNull } from "../utils/sanitize";
 
 const router = Router();
 
@@ -22,8 +22,8 @@ const createUserSchema = z.object({
 const updateUserSchema = z.object({
   name:      z.string().min(2).optional().transform(cleanOpt),
   email:     z.string().email().optional().transform(v => v !== undefined ? cleanEmail(v) : v),
-  phone:     z.string().optional().nullable().transform(cleanOpt),
-  expertise: z.string().optional().nullable().transform(cleanOpt),
+  phone:     z.string().optional().nullable().transform(cleanOptNull),
+  expertise: z.string().optional().nullable().transform(cleanOptNull),
   isActive:  z.boolean().optional(),
 });
 
