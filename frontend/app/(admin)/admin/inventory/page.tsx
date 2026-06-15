@@ -91,8 +91,7 @@ export default function InventoryPage() {
       {/* Header */}
       <div className="page-header">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Inventario</h1>
-          <div className="flex items-center gap-2 mt-0.5">
+                    <div className="flex items-center gap-2 mt-0.5">
             <p className="text-on-surface-variant text-sm">
               {total} artículo{total !== 1 ? "s" : ""} registrado{total !== 1 ? "s" : ""}
             </p>

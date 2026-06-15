@@ -233,8 +233,7 @@ export default function CompanyPage() {
     <div className="page-stack">
       <div className="page-header">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Perfil de la empresa</h1>
-          <p className="text-muted-foreground text-sm mt-0.5">{company?.name}</p>
+                    <p className="text-muted-foreground text-sm mt-0.5">{company?.name}</p>
         </div>
       </div>
 

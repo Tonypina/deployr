@@ -63,10 +63,7 @@ export default function ClientDashboard() {
       {/* ── Welcome hero ───────────────────────────────────────────────── */}
       <section className="flex flex-col md:flex-row justify-between items-end gap-4 pt-2">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-on-surface">
-            Panel de Servicio
-          </h1>
-          <p className="text-on-surface-variant text-sm mt-1">
+                    <p className="text-on-surface-variant text-sm mt-1">
             Gestiona tu mantenimiento y sigue el estado de tus activos en tiempo real.
           </p>
         </div>

@@ -227,8 +227,7 @@ export default function ClientsPage() {
       {/* Header */}
       <div className="page-header">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Clientes</h1>
-          <div className="flex items-center gap-2 mt-0.5">
+                    <div className="flex items-center gap-2 mt-0.5">
             <p className="text-on-surface-variant text-sm">Directorio y seguimiento de clientes</p>
             <PlanLimitBadge used={total} max={features?.clientMax} />
           </div>

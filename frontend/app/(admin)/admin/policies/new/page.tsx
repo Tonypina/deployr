@@ -139,8 +139,7 @@ export default function NewPolicyPage() {
             <Link href="/admin/policies"><ArrowLeft className="h-3.5 w-3.5" /></Link>
           </Button>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">Nueva póliza</h1>
-            <p className="text-muted-foreground text-sm mt-0.5">Configura los detalles y equipos de la póliza</p>
+                        <p className="text-muted-foreground text-sm mt-0.5">Configura los detalles y equipos de la póliza</p>
           </div>
         </div>
       </div>

@@ -1,13 +1,23 @@
 "use client";
 
 import { useState } from "react";
-import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid,
-  Tooltip, Legend, ResponsiveContainer,
-} from "recharts";
-import { ChevronLeft } from "lucide-react";
+import { Pie, PieChart, Cell } from "recharts";
 import { ClientTimeAnalytics } from "@/lib/services/tickets";
-import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  type ChartConfig,
+  ChartContainer,
+  ChartLegend,
+  ChartLegendContent,
+  ChartTooltip,
+  ChartTooltipContent,
+} from "@/components/ui/chart";
 
 const STATE_LABELS: Record<string, string> = {
   PENDING:          "Pendiente",
@@ -24,14 +34,16 @@ const STATE_LABELS: Record<string, string> = {
   EXPIRED:          "Expirado",
 };
 
-// Canonical order so states always appear left-to-right in workflow order
+// Canonical workflow order so slices are laid out consistently
 const STATE_ORDER = [
   "PENDING", "ASSIGNED", "ON_SITE", "IN_PROGRESS",
   "PENDING_REPORT", "REVIEW", "PENDING_APPROVAL", "REOPENED",
   "COMPLETED",
 ];
 
-const ENTITY_COLORS = ["#adc6ff", "#ffcf8f", "#3ce36a", "#818cf8", "#67e8f9"];
+const STATE_COLORS = [
+  "var(--chart-1)", "var(--chart-2)", "var(--chart-3)", "var(--chart-4)", "var(--chart-5)",
+];
 
 function fmtHours(h: number) {
   if (h < 1) return `${Math.round(h * 60)}m`;
@@ -39,169 +51,182 @@ function fmtHours(h: number) {
   return `${(h / 24).toFixed(1)}d`;
 }
 
-interface TooltipProps {
-  active?: boolean;
-  payload?: Array<{ name: string; value: number; color: string }>;
-  label?: string;
-}
-
-function CustomTooltip({ active, payload, label }: TooltipProps) {
-  if (!active || !payload?.length) return null;
-  return (
-    <div
-      className="rounded-lg border border-white/10 px-3 py-2 text-xs min-w-[150px]"
-      style={{ background: "rgba(20,20,20,0.95)", backdropFilter: "blur(12px)" }}
-    >
-      <p className="font-label-caps text-on-surface-variant mb-2">{label}</p>
-      {payload.filter((e) => e.value > 0).map((entry) => (
-        <div key={entry.name} className="flex items-center gap-2 py-0.5">
-          <span className="w-2 h-2 rounded-full shrink-0" style={{ background: entry.color }} />
-          <span className="text-on-surface-variant truncate max-w-[110px]">{entry.name}</span>
-          <span className="ml-auto pl-3 font-semibold" style={{ color: entry.color }}>
-            {fmtHours(entry.value)}
-          </span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-interface Entity {
-  id: string;
-  name: string;
-  avgByStatus: Record<string, number>;
-}
-
 interface Props {
   data: ClientTimeAnalytics[];
   loading: boolean;
 }
 
+const ALL_CLIENTS = "Todos";
+const ALL_BRANCHES = "Todas";
+
 export function TimePerStateChart({ data, loading }: Props) {
-  const [drillClient, setDrillClient] = useState<{ id: string; name: string } | null>(null);
+  const [clientId, setClientId] = useState<string>(ALL_CLIENTS);
+  const [branchId, setBranchId] = useState<string>(ALL_BRANCHES);
 
-  // Top 5 clients by total avg time
-  const topClients: Entity[] = [...data]
-    .sort((a, b) => {
-      const sum = (x: Record<string, number>) => Object.values(x).reduce((s, v) => s + v, 0);
-      return sum(b.avgByStatus) - sum(a.avgByStatus);
-    })
-    .slice(0, 5)
-    .map((c) => ({ id: c.clientId, name: c.clientName, avgByStatus: c.avgByStatus }));
+  const selectedClient = clientId === ALL_CLIENTS ? null : data.find((c) => c.clientId === clientId);
+  const branches = selectedClient?.branches ?? [];
 
-  const entities: Entity[] = drillClient
-    ? (data.find((c) => c.clientId === drillClient.id)?.branches ?? [])
-        .slice(0, 5)
-        .map((b) => ({ id: b.branchId, name: b.branchName, avgByStatus: b.avgByStatus }))
-    : topClients;
+  // Pick the set of entities whose avgByStatus we aggregate, narrowing from all
+  // clients → one client → one branch as the filters tighten.
+  let scoped: { avgByStatus: Record<string, number> }[];
+  if (!selectedClient) {
+    scoped = data;
+  } else if (branchId === ALL_BRANCHES) {
+    scoped = [selectedClient];
+  } else {
+    const branch = branches.find((b) => b.branchId === branchId);
+    scoped = branch ? [branch] : [];
+  }
 
-  const presentStates = STATE_ORDER;
-
-  type ChartRow = { state: string } & Record<string, string | number>;
-  const rows: ChartRow[] = presentStates.map((status) => {
-    const row: ChartRow = { state: STATE_LABELS[status] ?? status };
-    for (const entity of entities) {
-      row[entity.name] = entity.avgByStatus[status] ?? 0;
+  // When the scope is a single client/branch we use its averages directly;
+  // across all clients we average each state over the clients that actually
+  // spent time in it, so the pie reflects typical time-per-state rather than a
+  // sum skewed by volume.
+  const sums: Record<string, number> = {};
+  const counts: Record<string, number> = {};
+  for (const client of scoped) {
+    for (const [status, hours] of Object.entries(client.avgByStatus)) {
+      if (hours > 0) {
+        sums[status] = (sums[status] ?? 0) + hours;
+        counts[status] = (counts[status] ?? 0) + 1;
+      }
     }
-    return row;
-  });
+  }
 
-  const hasData = entities.length > 0;
+  const rows = STATE_ORDER
+    .filter((status) => counts[status] > 0)
+    .map((status, i) => ({
+      status,
+      label: STATE_LABELS[status] ?? status,
+      value: sums[status] / counts[status],
+      fill: STATE_COLORS[i % STATE_COLORS.length],
+    }));
 
+  const hasData = rows.length > 0;
+
+  const selector = (
+    <div className="flex flex-wrap items-center gap-2">
+      <div className=" grid grid-cols-2 gap-2">
+        <Select
+          value={clientId}
+          onValueChange={(v) => {
+            setClientId(v ?? ALL_CLIENTS);
+            setBranchId(ALL_BRANCHES); // branches belong to a client — reset on change
+          }}
+        >
+          <SelectTrigger aria-label="Cliente" size="default" className="min-w-44">
+            <SelectValue placeholder="Cliente">
+              {(value) =>
+                value === ALL_CLIENTS
+                  ? "Todos los clientes"
+                  : data.find((c) => c.clientId === value)?.clientName ?? value
+              }
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent align="start">
+            <SelectItem value={ALL_CLIENTS}>Todos los clientes</SelectItem>
+            {data.map((c) => (
+              <SelectItem key={c.clientId} value={c.clientId}>
+                {c.clientName}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {selectedClient && branches.length > 0 && (
+          <Select value={branchId} onValueChange={(v) => setBranchId(v ?? ALL_BRANCHES)}>
+            <SelectTrigger aria-label="Sucursal" size="default" className="min-w-44">
+              <SelectValue placeholder="Sucursal">
+                {(value) =>
+                  value === ALL_BRANCHES
+                    ? "Todas las sucursales"
+                    : branches.find((b) => b.branchId === value)?.branchName ?? value
+                }
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent align="start">
+              <SelectItem value={ALL_BRANCHES}>Todas las sucursales</SelectItem>
+              {branches.map((b) => (
+                <SelectItem key={b.branchId} value={b.branchId}>
+                  {b.branchName}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+      </div>
+    </div>
+  );
+
+  let body: React.ReactNode;
   if (loading) {
-    return (
-      <div className="h-56 flex items-center justify-center">
+    body = (
+      <div className="h-[300px] flex items-center justify-center">
         <p className="text-sm text-muted-foreground">Cargando datos...</p>
       </div>
     );
-  }
-
-  if (!hasData) {
-    return (
-      <div className="h-56 flex items-center justify-center">
+  } else if (!hasData) {
+    body = (
+      <div className="h-[300px] flex items-center justify-center">
         <p className="text-sm text-muted-foreground">Sin datos de historial de estados</p>
       </div>
+    );
+  } else {
+    const chartConfig: ChartConfig = Object.fromEntries(
+      rows.map((r) => [r.status, { label: r.label, color: r.fill }])
+    );
+    body = (
+      <ChartContainer config={chartConfig} className="aspect-auto h-[300px] w-full">
+      <PieChart margin={{ top: 4, right: 8, left: 8, bottom: 4 }}>
+        <ChartTooltip
+          content={
+            <ChartTooltipContent
+              nameKey="status"
+              className="min-w-[150px]"
+              formatter={(value, name, item) => {
+                const num = Number(value);
+                return (
+                  <>
+                    <div
+                      className="h-2.5 w-2.5 shrink-0 rounded-[2px]"
+                      style={{ background: item?.payload?.fill ?? item?.color }}
+                    />
+                    <div className="flex flex-1 items-center justify-between gap-3 leading-none">
+                      <span className="text-muted-foreground truncate max-w-[110px]">
+                        {chartConfig[name as string]?.label ?? name}
+                      </span>
+                      <span className="font-mono font-medium text-foreground tabular-nums">
+                        {fmtHours(num)}
+                      </span>
+                    </div>
+                  </>
+                );
+              }}
+            />
+          }
+        />
+        <Pie
+          data={rows}
+          dataKey="value"
+          nameKey="status"
+          innerRadius={55}
+          outerRadius={95}
+          paddingAngle={2}
+          strokeWidth={2}
+        >
+          {rows.map((r) => (
+            <Cell key={r.status} fill={r.fill} />
+          ))}
+        </Pie>
+        <ChartLegend content={<ChartLegendContent nameKey="status" />} className="flex-wrap" />
+      </PieChart>
+    </ChartContainer>
     );
   }
 
   return (
-    <div className="w-full">
-      {drillClient && (
-        <div className="flex items-center gap-2 mb-3">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 px-2 text-xs gap-1"
-            onClick={() => setDrillClient(null)}
-          >
-            <ChevronLeft className="h-3.5 w-3.5" />
-            Todos los clientes
-          </Button>
-          <span className="text-xs text-on-surface-variant">
-            Sucursales de{" "}
-            <span className="text-on-surface font-medium">{drillClient.name}</span>
-          </span>
-        </div>
-      )}
-
-      <ResponsiveContainer width="100%" height={300}>
-        <BarChart
-          data={rows}
-          margin={{ top: 4, right: 8, left: -16, bottom: presentStates.length > 6 ? 40 : 0 }}
-          barGap={3}
-        >
-          <CartesianGrid
-            strokeDasharray="3 3"
-            stroke="rgba(255,255,255,0.05)"
-            vertical={false}
-          />
-          <XAxis
-            dataKey="state"
-            tick={{
-              fill: "#c1c6d7",
-              fontSize: 11,
-              ...(presentStates.length > 6 ? { textAnchor: "end" } : {}),
-            }}
-            angle={presentStates.length > 6 ? -35 : 0}
-            axisLine={false}
-            tickLine={false}
-            interval={0}
-          />
-          <YAxis
-            tickFormatter={fmtHours}
-            tick={{ fill: "#c1c6d7", fontSize: 11 }}
-            axisLine={false}
-            tickLine={false}
-          />
-          <Tooltip content={<CustomTooltip />} cursor={{ fill: "rgba(255,255,255,0.04)" }} />
-          <Legend
-            iconType="circle"
-            iconSize={8}
-            wrapperStyle={{ fontSize: 11, color: "#c1c6d7", paddingTop: 12 }}
-          />
-          {entities.map((entity, i) => (
-            <Bar
-              key={entity.id}
-              dataKey={entity.name}
-              fill={ENTITY_COLORS[i]}
-              radius={[3, 3, 0, 0]}
-              maxBarSize={32}
-              style={{ cursor: drillClient ? "default" : "pointer" }}
-              onClick={() => {
-                if (!drillClient) {
-                  setDrillClient({ id: entity.id, name: entity.name });
-                }
-              }}
-            />
-          ))}
-        </BarChart>
-      </ResponsiveContainer>
-
-      {!drillClient && hasData && (
-        <p className="text-xs text-on-surface-variant text-center mt-1">
-          Haz clic en la barra de un cliente para ver por sucursal
-        </p>
-      )}
+    <div className="space-y-3">
+      {selector}
+      {body}
     </div>
   );
 }

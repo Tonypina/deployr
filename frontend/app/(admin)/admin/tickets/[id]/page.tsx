@@ -292,7 +292,7 @@ export default function AdminTicketDetailPage() {
         <Button variant="ghost" size="icon" asChild>
           <Link href="/admin/tickets"><ChevronLeft className="h-4 w-4" /></Link>
         </Button>
-        <h1 className="text-2xl font-bold tracking-tight flex-1">Ticket</h1>
+        <div className="flex-1" />
         {!isTerminal && (
           <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={handleCancelTicket} disabled={acting}>
             <X className="h-4 w-4 mr-1" />Cancelar

@@ -6,6 +6,8 @@ export async function getTickets(params?: {
   limit?: number;
   page?: number;
   year?: number;
+  from?: string;
+  to?: string;
   search?: string;
   clientId?: string;
   technicianId?: string;
@@ -18,6 +20,8 @@ export async function getTickets(params?: {
   if (params?.limit)       qs.set("limit",        String(params.limit));
   if (params?.page)        qs.set("page",         String(params.page));
   if (params?.year)        qs.set("year",         String(params.year));
+  if (params?.from)        qs.set("from",         params.from);
+  if (params?.to)          qs.set("to",           params.to);
   if (params?.search)      qs.set("search",       params.search);
   if (params?.clientId)    qs.set("clientId",     params.clientId);
   if (params?.technicianId) qs.set("technicianId", params.technicianId);

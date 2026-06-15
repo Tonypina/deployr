@@ -59,13 +59,7 @@ export default function ClientBranchesPage() {
   return (
     <div className="page-stack">
       <div className="page-header">
-        <h1 className="text-2xl font-bold tracking-tight">
-          Mis Sucursales
-          {!loading && (
-            <span className="ml-2 text-sm font-normal text-muted-foreground">({branches.length})</span>
-          )}
-        </h1>
-      </div>
+              </div>
 
       {loading ? (
         <p className="text-sm text-muted-foreground">Cargando...</p>
@@ -82,7 +76,7 @@ export default function ClientBranchesPage() {
           {branches.map((branch) => {
             const isOpen = expanded.has(branch.id);
             return (
-              <Card key={branch.id}>
+              <Card key={branch.id} className="gap-0 py-0">
                 <div
                   className="flex items-start justify-between gap-3 p-4 cursor-pointer select-none hover:bg-muted/40 transition-colors"
                   onClick={() => toggle(branch.id)}

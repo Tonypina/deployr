@@ -1,7 +1,6 @@
 "use client";
 
-import { useState } from "react";
-import { Ticket, Building2, AlertTriangle, FileCheck, Users, ChevronLeft, ChevronRight } from "lucide-react";
+import { Ticket, Building2, AlertTriangle, FileCheck, Users } from "lucide-react";
 import Link from "next/link";
 import { StatsCard } from "@/components/shared/stats-card";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -19,13 +18,7 @@ import { TimePerStateChart } from "@/components/shared/time-per-state-chart";
 
 const BUSY_STATUSES = new Set(["ASSIGNED", "ON_SITE", "IN_PROGRESS", "PENDING_REPORT"]);
 
-const CHART_SLIDES = [
-  { title: "Tiempo promedio por estado", subtitle: "Por cliente · clic para ver sucursales" },
-  { title: "Tickets por cliente", subtitle: `Top 3 clientes — ${new Date().getFullYear()}` },
-];
-
 export default function AdminDashboard() {
-  const [chartSlide, setChartSlide] = useState(0);
   const { tickets: allTickets, loading: ticketsLoading } = useTickets({ limit: 5, orderBy: "updatedAt" });
   const { tickets: activeTickets } = useTickets({ limit: 100 });
   const { data: timeData, loading: timeLoading } = useTimeAnalytics();
@@ -59,13 +52,6 @@ export default function AdminDashboard() {
 
   return (
     <div className="page-stack">
-      <div className="page-header">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
-          <p className="text-muted-foreground text-sm mt-0.5">Resumen de operaciones</p>
-        </div>
-      </div>
-
       <div className="stats-grid">
         <StatsCard
           title="Tickets activos"
@@ -133,56 +119,41 @@ export default function AdminDashboard() {
         </Card>
       )}
 
-      {/* Chart carousel (2/3) + Last tickets (1/3) */}
+      {/* Tickets-by-client line chart (2/3) + time-per-state pie chart (1/3) */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <Card className="lg:col-span-2">
           <CardHeader>
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2 min-w-0">
-                <Ticket className="h-4 w-4 text-primary shrink-0" />
-                <div className="min-w-0">
-                  <CardTitle className="truncate">{CHART_SLIDES[chartSlide].title}</CardTitle>
-                  <p className="text-xs text-on-surface-variant mt-0.5">{CHART_SLIDES[chartSlide].subtitle}</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-1 shrink-0">
-                <Button
-                  variant="ghost" size="icon"
-                  className="h-7 w-7"
-                  onClick={() => setChartSlide((s) => (s - 1 + CHART_SLIDES.length) % CHART_SLIDES.length)}
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </Button>
-                <div className="flex gap-1 px-1">
-                  {CHART_SLIDES.map((_, i) => (
-                    <button
-                      key={i}
-                      onClick={() => setChartSlide(i)}
-                      className={cn(
-                        "h-1.5 rounded-full transition-all",
-                        i === chartSlide ? "w-4 bg-primary" : "w-1.5 bg-outline-variant"
-                      )}
-                    />
-                  ))}
-                </div>
-                <Button
-                  variant="ghost" size="icon"
-                  className="h-7 w-7"
-                  onClick={() => setChartSlide((s) => (s + 1) % CHART_SLIDES.length)}
-                >
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
+            <div className="flex items-center gap-2 min-w-0">
+              <Ticket className="h-4 w-4 text-primary shrink-0" />
+              <div className="min-w-0">
+                <CardTitle className="truncate">Tickets por cliente</CardTitle>
+                <p className="text-xs text-on-surface-variant mt-0.5">Top 3 clientes en el rango seleccionado</p>
               </div>
             </div>
           </CardHeader>
           <CardContent>
-            {chartSlide === 1
-              ? <TicketsByClientChart />
-              : <TimePerStateChart data={timeData} loading={timeLoading} />
-            }
+            <TicketsByClientChart />
           </CardContent>
         </Card>
 
+        <Card className="lg:col-span-1">
+          <CardHeader>
+            <div className="flex items-center gap-2 min-w-0">
+              <Ticket className="h-4 w-4 text-primary shrink-0" />
+              <div className="min-w-0">
+                <CardTitle className="truncate">Tiempo promedio por estado</CardTitle>
+                <p className="text-xs text-on-surface-variant mt-0.5">Distribución del tiempo en cada estado</p>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <TimePerStateChart data={timeData} loading={timeLoading} />
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Technician tracker (2/3) + Last tickets (1/3) */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <Card className="lg:col-span-1">
           <CardHeader><CardTitle>Últimos tickets</CardTitle></CardHeader>
           <CardContent>
@@ -212,161 +183,161 @@ export default function AdminDashboard() {
             )}
           </CardContent>
         </Card>
-      </div>
 
-      {/* Technician Status Tracker */}
-      <div className="glass-card rounded-xl overflow-hidden">
-        {/* Header */}
-        <div className="px-6 py-5 border-b border-outline-variant flex items-center justify-between">
-          <div>
-            <h2 className="text-base font-semibold text-on-surface">Estado de Técnicos</h2>
-            <p className="text-on-surface-variant text-xs mt-0.5">Monitoreo de disponibilidad en tiempo real</p>
+        {/* Technician Status Tracker */}
+        <div className="glass-card rounded-xl overflow-hidden lg:col-span-2">
+          {/* Header */}
+          <div className="px-6 py-5 border-b border-outline-variant flex items-center justify-between">
+            <div>
+              <h2 className="text-base font-semibold text-on-surface">Estado de Técnicos</h2>
+              <p className="text-on-surface-variant text-xs mt-0.5">Monitoreo de disponibilidad en tiempo real</p>
+            </div>
+            <Link
+              href="/admin/technicians"
+              className="flex items-center gap-1.5 text-primary text-sm hover:underline"
+            >
+              Ver técnicos
+              <Users className="h-4 w-4" />
+            </Link>
           </div>
-          <Link
-            href="/admin/technicians"
-            className="flex items-center gap-1.5 text-primary text-sm hover:underline"
-          >
-            Ver técnicos
-            <Users className="h-4 w-4" />
-          </Link>
-        </div>
 
-        {/* Table */}
-        {techsLoading ? (
-          <div className="px-6 py-8">
-            <p className="text-sm text-muted-foreground">Cargando...</p>
-          </div>
-        ) : !technicians.length ? (
-          <div className="px-6 py-8">
-            <p className="text-sm text-muted-foreground">Sin técnicos registrados</p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-surface-container-low">
-                  {["Técnico", "Tarea actual", "Estado", "Progreso", "Ticket"].map((h) => (
-                    <th
-                      key={h}
-                      className="px-6 py-4 font-label-caps text-on-surface-variant border-b border-outline-variant/30"
-                    >
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-outline-variant/10">
-                {technicians.map((tech, i) => {
-                  const activeTicket = techTicketMap.get(tech.id);
-                  const isAvailable = !activeTicket;
-                  const ticketStatus = activeTicket?.status;
+          {/* Table */}
+          {techsLoading ? (
+            <div className="px-6 py-8">
+              <p className="text-sm text-muted-foreground">Cargando...</p>
+            </div>
+          ) : !technicians.length ? (
+            <div className="px-6 py-8">
+              <p className="text-sm text-muted-foreground">Sin técnicos registrados</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-surface-container-low">
+                    {["Técnico", "Tarea actual", "Estado", "Progreso", "Ticket"].map((h) => (
+                      <th
+                        key={h}
+                        className="px-6 py-4 font-label-caps text-on-surface-variant border-b border-outline-variant/30"
+                      >
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-outline-variant/10">
+                  {technicians.map((tech, i) => {
+                    const activeTicket = techTicketMap.get(tech.id);
+                    const isAvailable = !activeTicket;
+                    const ticketStatus = activeTicket?.status;
 
-                  // Cycle avatar colors for visual variety
-                  const avatarStyles = [
-                    { bg: "bg-primary/20",      text: "text-primary"      },
-                    { bg: "bg-amber-accent/20", text: "text-amber-accent" },
-                    { bg: "bg-tertiary/20",     text: "text-tertiary"     },
-                  ];
-                  const avatar = avatarStyles[i % avatarStyles.length];
-                  const initials = tech.name.split(" ").map((p) => p[0]).slice(0, 2).join("").toUpperCase();
+                    // Cycle avatar colors for visual variety
+                    const avatarStyles = [
+                      { bg: "bg-primary/20",      text: "text-primary"      },
+                      { bg: "bg-amber-accent/20", text: "text-amber-accent" },
+                      { bg: "bg-tertiary/20",     text: "text-tertiary"     },
+                    ];
+                    const avatar = avatarStyles[i % avatarStyles.length];
+                    const initials = tech.name.split(" ").map((p) => p[0]).slice(0, 2).join("").toUpperCase();
 
-                  // Load bar — increases with each step in the workflow
-                  const loadPct = ticketStatus === "PENDING_REPORT" ? 100
-                    : ticketStatus === "IN_PROGRESS" ? 75
-                    : ticketStatus === "ON_SITE" ? 50
-                    : ticketStatus === "ASSIGNED" ? 25
-                    : 0;
-                  const loadColor = ticketStatus === "PENDING_REPORT" ? "bg-violet-400"
-                    : ticketStatus === "IN_PROGRESS" ? "bg-tertiary"
-                    : ticketStatus === "ON_SITE" ? "bg-cyan-400"
-                    : ticketStatus === "ASSIGNED" ? "bg-primary"
-                    : "bg-outline-variant";
+                    // Load bar — increases with each step in the workflow
+                    const loadPct = ticketStatus === "PENDING_REPORT" ? 100
+                      : ticketStatus === "IN_PROGRESS" ? 75
+                      : ticketStatus === "ON_SITE" ? 50
+                      : ticketStatus === "ASSIGNED" ? 25
+                      : 0;
+                    const loadColor = ticketStatus === "PENDING_REPORT" ? "bg-violet-400"
+                      : ticketStatus === "IN_PROGRESS" ? "bg-tertiary"
+                      : ticketStatus === "ON_SITE" ? "bg-cyan-400"
+                      : ticketStatus === "ASSIGNED" ? "bg-primary"
+                      : "bg-outline-variant";
 
-                  // ETA: use scheduledAt if present
-                  const eta = activeTicket?.scheduledAt
-                    ? new Intl.DateTimeFormat("es-MX", { hour: "2-digit", minute: "2-digit" }).format(new Date(activeTicket.scheduledAt))
-                    : "N/A";
+                    // ETA: use scheduledAt if present
+                    const eta = activeTicket?.scheduledAt
+                      ? new Intl.DateTimeFormat("es-MX", { hour: "2-digit", minute: "2-digit" }).format(new Date(activeTicket.scheduledAt))
+                      : "N/A";
 
-                  return (
-                    <tr key={tech.id} className="hover:bg-white/5 transition-colors">
-                      {/* Technician */}
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-3">
-                          <div className={cn("w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs shrink-0", avatar.bg, avatar.text)}>
-                            {initials}
+                    return (
+                      <tr key={tech.id} className="hover:bg-white/5 transition-colors">
+                        {/* Technician */}
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-3">
+                            <div className={cn("w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs shrink-0", avatar.bg, avatar.text)}>
+                              {initials}
+                            </div>
+                            <p className="font-semibold text-sm text-on-surface">{tech.name}</p>
                           </div>
-                          <p className="font-semibold text-sm text-on-surface">{tech.name}</p>
-                        </div>
-                      </td>
+                        </td>
 
-                      {/* Current task */}
-                      <td className="px-6 py-4 text-sm max-w-[220px]">
-                        {isAvailable ? (
-                          <span className="text-on-surface-variant italic">Sin tarea activa</span>
-                        ) : (
-                          <span className="text-on-surface truncate block">{activeTicket.title}</span>
-                        )}
-                      </td>
+                        {/* Current task */}
+                        <td className="px-6 py-4 text-sm max-w-[220px]">
+                          {isAvailable ? (
+                            <span className="text-on-surface-variant italic">Sin tarea activa</span>
+                          ) : (
+                            <span className="text-on-surface truncate block">{activeTicket.title}</span>
+                          )}
+                        </td>
 
-                      {/* Status badge */}
-                      <td className="px-6 py-4">
-                        {isAvailable ? (
-                          <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded bg-surface-container-highest font-label-caps text-on-surface-variant">
-                            DISPONIBLE
-                          </span>
-                        ) : ticketStatus === "ASSIGNED" ? (
-                          <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded bg-primary/10 font-label-caps text-primary">
-                            <span className="w-1.5 h-1.5 rounded-full bg-primary inline-flex" />
-                            ASIGNADO
-                          </span>
-                        ) : ticketStatus === "ON_SITE" ? (
-                          <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded bg-cyan-500/10 font-label-caps text-cyan-400">
-                            <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-ping inline-flex" />
-                            EN SITIO
-                          </span>
-                        ) : ticketStatus === "IN_PROGRESS" ? (
-                          <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded bg-tertiary/10 font-label-caps text-tertiary">
-                            <span className="w-1.5 h-1.5 rounded-full bg-tertiary animate-ping inline-flex" />
-                            EN PROGRESO
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded bg-violet-500/10 font-label-caps text-violet-400">
-                            <span className="w-1.5 h-1.5 rounded-full bg-violet-400 animate-ping inline-flex" />
-                            LLENANDO REPORTE
-                          </span>
-                        )}
-                      </td>
+                        {/* Status badge */}
+                        <td className="px-6 py-4">
+                          {isAvailable ? (
+                            <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded bg-surface-container-highest font-label-caps text-on-surface-variant">
+                              DISPONIBLE
+                            </span>
+                          ) : ticketStatus === "ASSIGNED" ? (
+                            <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded bg-primary/10 font-label-caps text-primary">
+                              <span className="w-1.5 h-1.5 rounded-full bg-primary inline-flex" />
+                              ASIGNADO
+                            </span>
+                          ) : ticketStatus === "ON_SITE" ? (
+                            <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded bg-cyan-500/10 font-label-caps text-cyan-400">
+                              <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-ping inline-flex" />
+                              EN SITIO
+                            </span>
+                          ) : ticketStatus === "IN_PROGRESS" ? (
+                            <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded bg-tertiary/10 font-label-caps text-tertiary">
+                              <span className="w-1.5 h-1.5 rounded-full bg-tertiary animate-ping inline-flex" />
+                              EN PROGRESO
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded bg-violet-500/10 font-label-caps text-violet-400">
+                              <span className="w-1.5 h-1.5 rounded-full bg-violet-400 animate-ping inline-flex" />
+                              LLENANDO REPORTE
+                            </span>
+                          )}
+                        </td>
 
-                      {/* Load bar */}
-                      <td className="px-6 py-4">
-                        <div className="w-24 bg-surface-container-highest h-1.5 rounded-full overflow-hidden">
-                          <div
-                            className={cn("h-full rounded-full transition-all duration-500", loadColor)}
-                            style={{ width: `${loadPct}%` }}
-                          />
-                        </div>
-                      </td>
+                        {/* Load bar */}
+                        <td className="px-6 py-4">
+                          <div className="w-24 bg-surface-container-highest h-1.5 rounded-full overflow-hidden">
+                            <div
+                              className={cn("h-full rounded-full transition-all duration-500", loadColor)}
+                              style={{ width: `${loadPct}%` }}
+                            />
+                          </div>
+                        </td>
 
-                      {/* Ticket link */}
-                      <td className="px-6 py-4 text-sm text-on-surface-variant">
-                        {activeTicket ? (
-                          <Link
-                            href={`/admin/tickets/${activeTicket.id}`}
-                            className="text-primary hover:underline text-xs font-label-caps"
-                          >
-                            VER TICKET →
-                          </Link>
-                        ) : (
-                          <span>{eta}</span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
+                        {/* Ticket link */}
+                        <td className="px-6 py-4 text-sm text-on-surface-variant">
+                          {activeTicket ? (
+                            <Link
+                              href={`/admin/tickets/${activeTicket.id}`}
+                              className="text-primary hover:underline text-xs font-label-caps"
+                            >
+                              VER TICKET →
+                            </Link>
+                          ) : (
+                            <span>{eta}</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
       </div>
 
       <Card>

@@ -685,8 +685,7 @@ export default function TechTicketDetailPage() {
         <Button variant="ghost" size="icon" onClick={() => router.back()}>
           <ChevronLeft className="h-4 w-4" />
         </Button>
-        <h1 className="text-2xl font-bold tracking-tight">Ticket</h1>
-      </div>
+              </div>
 
       <Card>
         <CardHeader>

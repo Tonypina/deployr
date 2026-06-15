@@ -23,8 +23,7 @@ export default function ReportsPage() {
     <div className="page-stack">
       <div className="page-header">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Plantillas de reporte</h1>
-          <div className="flex items-center gap-2 mt-0.5">
+                    <div className="flex items-center gap-2 mt-0.5">
             <p className="text-muted-foreground text-sm">{templates.length} plantillas</p>
             <PlanLimitBadge used={customCount} max={features?.templateMax} label="Personalizadas" />
           </div>

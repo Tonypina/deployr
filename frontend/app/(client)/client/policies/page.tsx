@@ -15,8 +15,7 @@ export default function ClientPoliciesPage() {
     <div className="page-stack">
       <div className="page-header">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Mis Pólizas</h1>
-          <p className="text-muted-foreground text-sm mt-0.5">Servicios contratados y sus visitas programadas</p>
+                    <p className="text-muted-foreground text-sm mt-0.5">Servicios contratados y sus visitas programadas</p>
         </div>
       </div>
 
