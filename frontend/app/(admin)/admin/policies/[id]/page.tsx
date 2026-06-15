@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "@/hooks/use-toast";
 import { getPolicy, cancelPolicy } from "@/lib/services/policies";
 import { Policy } from "@/lib/types";
+import { usePageTitle } from "@/lib/page-title";
 import { cn, policyStatusLabel, policyStatusColor, recurrenceLabel, statusLabel, statusColor, formatDate } from "@/lib/utils";
 
 const PLANS_WITH_POLICIES = new Set(["PROFESIONAL", "EMPRESARIAL"]);
@@ -19,6 +20,7 @@ export default function PolicyDetailPage({ params }: { params: Promise<{ id: str
   const router = useRouter();
   const { user } = useAuthStore();
   const [policy, setPolicy] = useState<Policy | null>(null);
+  usePageTitle(policy?.name ?? "Póliza");
   const [loading, setLoading] = useState(true);
   const [cancelling, setCancelling] = useState(false);
 
@@ -75,7 +77,6 @@ export default function PolicyDetailPage({ params }: { params: Promise<{ id: str
           </Button>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-2xl font-bold tracking-tight">{policy.name}</h1>
               <span className={cn("text-xs px-2 py-0.5 rounded-full font-medium", policyStatusColor[policy.status])}>
                 {policyStatusLabel[policy.status]}
               </span>

@@ -115,10 +115,7 @@ function BillingPageInner() {
               {badge.label}
             </span>
           </div>
-          <h1 className="text-2xl font-bold tracking-tight">
-            Plan <span className={plan.color}>{plan.name}</span>
-          </h1>
-        </div>
+                  </div>
 
         {/* Header actions */}
         <div className="flex items-center gap-2 flex-wrap">

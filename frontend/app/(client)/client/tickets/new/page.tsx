@@ -81,8 +81,7 @@ export default function NewClientTicketPage() {
         <Button variant="ghost" size="icon" asChild>
           <Link href="/client"><ChevronLeft className="h-4 w-4" /></Link>
         </Button>
-        <h1 className="text-2xl font-bold tracking-tight">Solicitar servicio</h1>
-      </div>
+              </div>
 
       <form onSubmit={handleSubmit(onSubmit)} noValidate>
         <div className="page-stack">

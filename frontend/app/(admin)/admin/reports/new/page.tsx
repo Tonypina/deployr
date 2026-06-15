@@ -48,8 +48,7 @@ export default function NewReportTemplatePage() {
         <Button variant="ghost" size="icon" asChild>
           <Link href="/admin/reports"><ChevronLeft className="h-4 w-4" /></Link>
         </Button>
-        <h1 className="text-2xl font-bold tracking-tight">Nueva plantilla</h1>
-      </div>
+              </div>
 
       <Card>
         <CardHeader><CardTitle className="text-base">Datos generales</CardTitle></CardHeader>

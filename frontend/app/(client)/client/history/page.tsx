@@ -105,8 +105,7 @@ export default function HistoryPage() {
       {/* Header */}
       <div className="page-header">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Historial de servicios</h1>
-          <p className="text-muted-foreground text-sm mt-0.5">
+                    <p className="text-muted-foreground text-sm mt-0.5">
             {loading ? "Cargando..." : `${total} servicio${total !== 1 ? "s" : ""}`}
           </p>
         </div>

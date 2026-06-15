@@ -140,8 +140,7 @@ export default function TicketsPage() {
       {/* Header */}
       <div className="page-header">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Tickets</h1>
-          <p className="text-muted-foreground text-sm mt-0.5">
+                    <p className="text-muted-foreground text-sm mt-0.5">
             {loading ? "Cargando..." : `${total} ticket${total !== 1 ? "s" : ""}`}
           </p>
         </div>

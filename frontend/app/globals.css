@@ -1,39 +1,163 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+@import "tw-animate-css";
 
-@layer base {
-  :root {
-    color-scheme: dark;
-    /* Shadcn/ui CSS variable tokens — always dark */
-    --background: 0 0% 7.5%;              /* #131313 */
-    --foreground: 15 9% 89%;              /* #e5e2e1 */
-    --card: 0 0% 11.8%;                   /* #1e1e1e */
-    --card-foreground: 15 9% 89%;         /* #e5e2e1 */
-    --popover: 0 0% 9.4%;                 /* #181818 */
-    --popover-foreground: 15 9% 89%;      /* #e5e2e1 */
-    --primary: 220 100% 84%;              /* #adc6ff electric blue */
-    --primary-foreground: 216 100% 21%;   /* #002e69 dark blue */
-    --secondary: 36 100% 78%;             /* #ffcf8f amber */
-    --secondary-foreground: 37 100% 14%;  /* dark amber */
-    --muted: 0 0% 12.4%;                  /* #201f1f surface-container */
-    --muted-foreground: 228 20% 80%;      /* #c1c6d7 on-surface-variant */
-    --accent: 0 1% 21%;                   /* #353534 surface-container-highest */
-    --accent-foreground: 15 9% 89%;       /* #e5e2e1 */
-    --destructive: 6 100% 84%;            /* #ffb4ab error */
-    --destructive-foreground: 356 100% 21%; /* #690005 */
-    --border: 225 13% 29%;                /* #414755 outline-variant */
-    --input: 225 13% 29%;                 /* #414755 */
-    --ring: 220 100% 84%;                 /* #adc6ff focus ring */
-    --radius: 0.75rem;
-  }
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  /* ── shadcn / efferd semantic tokens (resolve via the vars below) ── */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  /* ── deployr design-system tokens (ported from tailwind.config.ts) ── */
+  --color-surface: #131313;
+  --color-surface-bright: #393939;
+  --color-surface-variant: #353534;
+  --color-surface-tint: #adc6ff;
+  --color-surface-container: #201f1f;
+  --color-surface-container-low: #1c1b1b;
+  --color-surface-container-high: #2a2a2a;
+  --color-surface-container-highest: #353534;
+  --color-surface-container-lowest: #0e0e0e;
+  --color-on-surface: #e5e2e1;
+  --color-on-surface-variant: #c1c6d7;
+  --color-outline-variant: #414755;
+  --color-primary-container: #4b8eff;
+  --color-on-primary: #002e69;
+  --color-tertiary: #3ce36a;
+  --color-tertiary-container: #00a744;
+  --color-on-tertiary: #003912;
+  --color-secondary-container: #feaa00;
+  --color-amber-accent: #ffcf8f;
+
+  /* fonts (CSS variables provided by next/font in app/layout.tsx) */
+  /* JetBrains Mono is the principal font, aligned to the efferd design */
+  --font-sans: var(--font-mono), ui-monospace, "JetBrains Mono", monospace;
+  --font-mono: var(--font-mono), ui-monospace, "JetBrains Mono", monospace;
+  --font-display: var(--font-display), "Saira Condensed", system-ui, sans-serif;
+
+  /* spacing scale (ported from tailwind.config.ts) */
+  --spacing-container-padding: 24px;
+  --spacing-gutter: 16px;
+  --spacing-stack-sm: 8px;
+  --spacing-stack-md: 16px;
+  --spacing-section-gap: 32px;
+
+  /* radius scale */
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+  --radius-3xl: calc(var(--radius) + 12px);
+  --radius-4xl: calc(var(--radius) + 16px);
+}
+
+:root {
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: oklch(0.878 0.169 92.05); /* #FFD230 */
+  --primary-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.967 0.001 286.375);
+  --secondary-foreground: oklch(0.21 0.006 285.885);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.708 0 0);
+  --chart-1: oklch(0.879 0.169 91.605);
+  --chart-2: oklch(0.769 0.188 70.08);
+  --chart-3: oklch(0.666 0.179 58.318);
+  --chart-4: oklch(0.555 0.163 48.998);
+  --chart-5: oklch(0.473 0.137 46.201);
+  --radius: 0.625rem;
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-primary: oklch(0.666 0.179 58.318);
+  --sidebar-primary-foreground: oklch(0.987 0.022 95.277);
+  --sidebar-accent: oklch(0.97 0 0);
+  --sidebar-accent-foreground: oklch(0.205 0 0);
+  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-ring: oklch(0.708 0 0);
+}
+
+.dark {
+  color-scheme: dark;
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.878 0.169 92.05); /* #FFD230 */
+  --primary-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.274 0.006 286.033);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.556 0 0);
+  --chart-1: oklch(0.879 0.169 91.605);
+  --chart-2: oklch(0.769 0.188 70.08);
+  --chart-3: oklch(0.666 0.179 58.318);
+  --chart-4: oklch(0.555 0.163 48.998);
+  --chart-5: oklch(0.473 0.137 46.201);
+  --sidebar: oklch(0.205 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.769 0.188 70.08);
+  --sidebar-primary-foreground: oklch(0.279 0.077 45.635);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.556 0 0);
 }
 
 @layer base {
-  * { @apply border-border; }
+  * {
+    @apply border-border outline-ring/50;
+  }
   body {
     @apply bg-background text-foreground;
-    font-family: var(--font-sans, "Inter", system-ui, sans-serif);
+    font-family: var(--font-mono), ui-monospace, "JetBrains Mono", monospace;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
@@ -43,14 +167,14 @@
     color-scheme: dark;
     background-color: #181818;
     color: #e5e2e1;
-    border-color: hsl(var(--border));
+    border-color: var(--border);
     border-radius: calc(var(--radius) - 2px);
     transition: border-color 0.2s, box-shadow 0.2s;
   }
   select:focus {
     outline: none;
-    border-color: hsl(var(--primary));
-    box-shadow: 0 0 0 2px hsl(var(--primary) / 0.2);
+    border-color: var(--primary);
+    box-shadow: 0 0 0 2px color-mix(in oklch, var(--primary) 20%, transparent);
   }
   option {
     background-color: #1e1e1e;
@@ -69,16 +193,12 @@
 
 /* ── Design-system components ── */
 @layer components {
-  /* Glassmorphic card — primary content surface */
+  /* Primary content surface — aligned to the efferd/dashboard-3 card style */
   .glass-card {
-    background: rgba(30, 30, 30, 0.7);
-    backdrop-filter: blur(24px);
-    -webkit-backdrop-filter: blur(24px);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    @apply rounded-xl transition-all duration-300;
+    @apply rounded-lg bg-card text-card-foreground ring-1 ring-foreground/10 transition-all duration-300;
   }
   .glass-card:hover {
-    border-color: rgba(173, 198, 255, 0.2);
+    @apply ring-foreground/20;
   }
 
   /* Machined inner highlight */

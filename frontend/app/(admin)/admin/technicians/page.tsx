@@ -256,8 +256,7 @@ export default function TechniciansPage() {
       {/* Header */}
       <div className="page-header">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Gestión de Técnicos</h1>
-          <div className="flex items-center gap-2 mt-0.5">
+                    <div className="flex items-center gap-2 mt-0.5">
             <p className="text-on-surface-variant text-sm">Monitoreo de disponibilidad en tiempo real</p>
             <PlanLimitBadge used={total} max={features?.techMax} />
           </div>

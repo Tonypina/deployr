@@ -65,7 +65,7 @@ export default function ClientTicketDetailPage() {
         <Button variant="ghost" size="icon" asChild>
           <Link href="/client"><ChevronLeft className="h-4 w-4" /></Link>
         </Button>
-        <h1 className="text-2xl font-bold tracking-tight flex-1">Ticket</h1>
+        <div className="flex-1" />
       </div>
 
       <Card>

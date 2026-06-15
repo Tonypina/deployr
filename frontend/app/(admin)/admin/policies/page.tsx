@@ -36,8 +36,7 @@ export default function PoliciesPage() {
     <div className="page-stack">
       <div className="page-header">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Pólizas</h1>
-          <p className="text-muted-foreground text-sm mt-0.5">{total} pólizas registradas</p>
+                    <p className="text-muted-foreground text-sm mt-0.5">{total} pólizas registradas</p>
         </div>
         <Button asChild>
           <Link href="/admin/policies/new"><Plus className="h-4 w-4 mr-1" />Nueva póliza</Link>

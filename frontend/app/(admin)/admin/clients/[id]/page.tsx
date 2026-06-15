@@ -24,6 +24,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn, formatDate } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
+import { usePageTitle } from "@/lib/page-title";
 
 // ── Zod schemas ─────────────────────────────────────────────────────────────
 
@@ -391,6 +392,7 @@ export default function ClientDetailPage() {
   const router = useRouter();
 
   const { client, templates, loading, refetch } = useClient(id);
+  usePageTitle(client?.name ?? "Cliente");
   const [assigningTemplate, setAssigningTemplate] = useState(false);
 
   const [editingClient, setEditingClient] = useState(false);
@@ -523,7 +525,7 @@ export default function ClientDetailPage() {
         <Button variant="ghost" size="icon" onClick={() => router.back()}>
           <ChevronLeft className="h-4 w-4" />
         </Button>
-        <h1 className="text-2xl font-bold tracking-tight flex-1 truncate">{client.name}</h1>
+        <div className="flex-1" />
         {!editingClient && (
           <>
             <Button variant="outline" size="sm" onClick={() => setEditingClient(true)}>

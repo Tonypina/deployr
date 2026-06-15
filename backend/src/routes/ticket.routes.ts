@@ -55,7 +55,7 @@ router.get("/", async (req: AuthRequest, res: Response, next: NextFunction) => {
     await expireOverdueTickets().catch((e) => console.error("[tickets] expire failed:", e));
 
     const {
-      status, priority, year, page = "1", limit = "20",
+      status, priority, year, from, to, page = "1", limit = "20",
       search,
       clientId: clientFilter,
       technicianId: technicianFilter,
@@ -68,14 +68,25 @@ router.get("/", async (req: AuthRequest, res: Response, next: NextFunction) => {
 
     const statuses = status ? status.split(",").filter(Boolean) : [];
 
-    const yearFilter = year
-      ? {
-          createdAt: {
-            gte: new Date(`${year}-01-01T00:00:00.000Z`),
-            lt: new Date(`${Number(year) + 1}-01-01T00:00:00.000Z`),
-          },
-        }
-      : {};
+    // Explicit from/to range takes precedence over `year`. Both are ISO date
+    // strings from the client; invalid values are ignored so the filter never
+    // throws and simply widens the range on that bound.
+    let dateFilter: { createdAt?: Record<string, Date> } = {};
+    if (from || to) {
+      const createdAt: Record<string, Date> = {};
+      const fromDate = from ? new Date(from) : null;
+      const toDate = to ? new Date(to) : null;
+      if (fromDate && !isNaN(fromDate.getTime())) createdAt.gte = fromDate;
+      if (toDate && !isNaN(toDate.getTime())) createdAt.lte = toDate;
+      if (Object.keys(createdAt).length > 0) dateFilter = { createdAt };
+    } else if (year) {
+      dateFilter = {
+        createdAt: {
+          gte: new Date(`${year}-01-01T00:00:00.000Z`),
+          lt: new Date(`${Number(year) + 1}-01-01T00:00:00.000Z`),
+        },
+      };
+    }
 
     const where: Record<string, unknown> = {
       ...(statuses.length > 0 ? { status: { in: statuses } } : {}),
@@ -85,7 +96,7 @@ router.get("/", async (req: AuthRequest, res: Response, next: NextFunction) => {
       ...(technicianFilter ? { technicianId: technicianFilter } : {}),
       ...(branchId ? { branchId } : {}),
       ...(equipmentId ? { equipmentId } : {}),
-      ...yearFilter,
+      ...dateFilter,
     };
 
     if (isAdminRole(role)) where.companyId = companyId;

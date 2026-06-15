@@ -134,8 +134,7 @@ export default function TechHistoryPage() {
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-on-surface">Historial de tickets</h1>
-          <p className="text-sm text-on-surface-variant mt-0.5">
+                    <p className="text-sm text-on-surface-variant mt-0.5">
             {loading ? "Cargando..." : `${total} ticket${total !== 1 ? "s" : ""}`}
           </p>
         </div>

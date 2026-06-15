@@ -9,6 +9,7 @@ import Link from "next/link";
 import { ChevronLeft, Plus, Trash2, GripVertical, Star, X } from "lucide-react";
 import { ReportTemplateField, FieldType } from "@/lib/types";
 import { useReportTemplate } from "@/lib/hooks/use-report-template";
+import { usePageTitle } from "@/lib/page-title";
 import {
   TemplateDetail,
   updateTemplate, deleteTemplate as deleteTemplateService, setDefaultTemplate,
@@ -58,6 +59,7 @@ export default function ReportTemplateDetailPage() {
 
   const nameForm = useForm<NameForm>({ resolver: zodResolver(nameSchema) });
   const { template, loading, refetch } = useReportTemplate(id);
+  usePageTitle(template?.name ?? "Plantilla");
 
   useEffect(() => {
     if (template) {
@@ -151,7 +153,7 @@ export default function ReportTemplateDetailPage() {
         <Button variant="ghost" size="icon" asChild>
           <Link href="/admin/reports"><ChevronLeft className="h-4 w-4" /></Link>
         </Button>
-        <h1 className="text-2xl font-bold tracking-tight flex-1 truncate">{template.name}</h1>
+        <div className="flex-1" />
         {template.isDefault ? (
           <span className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full font-medium bg-yellow-100 text-yellow-800">
             <Star className="h-3 w-3" />Predeterminada
