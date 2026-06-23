@@ -1,11 +1,13 @@
 import { api } from "@/lib/api-client";
 import { Policy, Ticket } from "@/lib/types";
 
-export async function listPolicies(params?: { page?: number; limit?: number; search?: string }) {
+export async function listPolicies(params?: { page?: number; limit?: number; search?: string; clientId?: string; status?: string }) {
   const qs = new URLSearchParams();
   if (params?.page) qs.set("page", String(params.page));
   if (params?.limit) qs.set("limit", String(params.limit));
   if (params?.search) qs.set("search", params.search);
+  if (params?.clientId) qs.set("clientId", params.clientId);
+  if (params?.status) qs.set("status", params.status);
   const q = qs.toString();
   const res = await api.get<{ policies: Policy[]; total: number; page: number; limit: number }>(`/api/policies${q ? `?${q}` : ""}`);
   return res.data!;

@@ -7,9 +7,10 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
-import { Branch, Equipment } from "@/lib/types";
+import { Branch, Equipment, Policy } from "@/lib/types";
 import { useClients } from "@/lib/hooks/use-clients";
 import { getBranches, getEquipment } from "@/lib/services/clients";
+import { listPolicies } from "@/lib/services/policies";
 import { createTicket } from "@/lib/services/tickets";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,6 +27,7 @@ const schema = z.object({
   branchId: z.string().min(1, "Selecciona una sucursal"),
   equipmentId: z.string().min(1, "Selecciona un equipo"),
   scheduledAt: z.string().optional(),
+  policyId: z.string().optional(),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -35,6 +37,7 @@ export default function NewTicketPage() {
   const [saving, setSaving] = useState(false);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [equipments, setEquipments] = useState<Equipment[]>([]);
+  const [policies, setPolicies] = useState<Policy[]>([]);
   const { clients } = useClients();
 
   const {
@@ -50,18 +53,25 @@ export default function NewTicketPage() {
 
   const selectedClientId = watch("clientId");
   const selectedBranchId = watch("branchId");
+  const selectedPolicyId = watch("policyId");
 
   useEffect(() => {
     if (!selectedClientId) {
       setBranches([]);
       setEquipments([]);
+      setPolicies([]);
       setValue("branchId", "");
       setValue("equipmentId", "");
+      setValue("policyId", "");
       return;
     }
     getBranches(selectedClientId).then(setBranches).catch(() => setBranches([]));
+    listPolicies({ clientId: selectedClientId, status: "ACTIVE", limit: 100 })
+      .then((res) => setPolicies(res.policies))
+      .catch(() => setPolicies([]));
     setValue("branchId", "");
     setValue("equipmentId", "");
+    setValue("policyId", "");
   }, [selectedClientId, setValue]);
 
   useEffect(() => {
@@ -85,6 +95,7 @@ export default function NewTicketPage() {
         branchId: data.branchId,
         equipmentId: data.equipmentId,
         scheduledAt: data.scheduledAt ? new Date(data.scheduledAt).toISOString() : undefined,
+        policyId: data.policyId || undefined,
       });
       toast({ title: "Ticket creado exitosamente" });
       router.replace(`/admin/tickets/${ticket.id}`);
@@ -212,11 +223,32 @@ export default function NewTicketPage() {
                 </select>
                 {errors.equipmentId && <p className="text-xs text-destructive">{errors.equipmentId.message}</p>}
               </div>
+
+              <div className="sm:col-span-2 grid gap-2">
+                <Label htmlFor="policyId">Póliza (opcional)</Label>
+                <select
+                  id="policyId"
+                  disabled={!selectedClientId || policies.length === 0}
+                  className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+                  {...register("policyId")}
+                >
+                  <option value="">
+                    {!selectedClientId ? "Selecciona un cliente primero" : policies.length === 0 ? "Este cliente no tiene pólizas activas" : "Sin póliza — flujo de cotización"}
+                  </option>
+                  {policies.map((p) => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </select>
+              </div>
             </CardContent>
           </Card>
 
           <p className="text-xs text-muted-foreground">
-            El ticket inicia en estado <span className="font-medium">Solicitado</span>. Sube la cotización y envíala al cliente para su aprobación antes de asignar un técnico.
+            {selectedPolicyId ? (
+              <>Al estar cubierto por una póliza, el ticket inicia en estado <span className="font-medium">Por asignar</span> y omite el proceso de cotización.</>
+            ) : (
+              <>El ticket inicia en estado <span className="font-medium">Solicitado</span>. Sube la cotización y envíala al cliente para su aprobación antes de asignar un técnico.</>
+            )}
           </p>
 
           <div className="flex gap-3 justify-end">

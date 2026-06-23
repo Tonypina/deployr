@@ -70,7 +70,7 @@ const roleLabel: Record<Role, string> = {
   CLIENT_USER: "Cliente",
 };
 
-const PLANS_WITH_POLICIES = new Set<string>(["PROFESIONAL", "EMPRESARIAL"]);
+const PLANS_WITH_POLICIES = new Set<string>(["BASICO", "INICIADOR", "PROFESIONAL", "EMPRESARIAL"]);
 
 export function AppSidebar() {
   const pathname = usePathname();

@@ -23,7 +23,7 @@ Access
 | Tecnician Management | Yes |
 | Client Management | Yes |
 | Tickets Management | Yes |
-| Policy Management | No |
+| Policy Management | Yes |
 | Reports Management | Yes |
 | Inventory Management | Yes |
 
@@ -44,7 +44,7 @@ Access
 | Tecnician Management | Yes |
 | Client Management | Yes |
 | Tickets Management | Yes |
-| Policy Management | No |
+| Policy Management | Yes |
 | Reports Management | Yes |
 | Inventory Management | Yes |
 

@@ -37,7 +37,7 @@ const recurrenceOptions = [
   { value: "ANNUAL",     label: "Anual"      },
 ];
 
-const PLANS_WITH_POLICIES = new Set(["PROFESIONAL", "EMPRESARIAL"]);
+const PLANS_WITH_POLICIES = new Set(["BASICO", "INICIADOR", "PROFESIONAL", "EMPRESARIAL"]);
 
 export default function NewPolicyPage() {
   const router = useRouter();
@@ -103,6 +103,41 @@ export default function NewPolicyPage() {
       prev.some((e) => e.equipmentId === equipmentId)
         ? prev.filter((e) => e.equipmentId !== equipmentId)
         : [...prev, { equipmentId, branchId }]
+    );
+  }
+
+  function isBranchAllSelected(branchId: string): boolean {
+    const eq = equipmentMap[branchId];
+    if (!eq || !eq.length) return false;
+    return eq.every((e) => selected.some((s) => s.equipmentId === e.id));
+  }
+
+  function toggleBranch(branchId: string) {
+    const eq = equipmentMap[branchId] ?? [];
+    if (!eq.length) return;
+    setSelected((prev) => {
+      const allSelected = eq.every((e) => prev.some((s) => s.equipmentId === e.id));
+      if (allSelected) return prev.filter((s) => !eq.some((e) => e.id === s.equipmentId));
+      const toAdd = eq
+        .filter((e) => !prev.some((s) => s.equipmentId === e.id))
+        .map((e) => ({ equipmentId: e.id, branchId }));
+      return [...prev, ...toAdd];
+    });
+  }
+
+  const allEquipment = branches.flatMap((b) =>
+    (equipmentMap[b.id] ?? []).map((e) => ({ equipmentId: e.id, branchId: b.id }))
+  );
+  const allSelected =
+    allEquipment.length > 0 &&
+    allEquipment.every((a) => selected.some((s) => s.equipmentId === a.equipmentId));
+
+  function toggleAll() {
+    if (!allEquipment.length) return;
+    setSelected((prev) =>
+      allEquipment.every((a) => prev.some((s) => s.equipmentId === a.equipmentId))
+        ? []
+        : allEquipment
     );
   }
 
@@ -211,11 +246,28 @@ export default function NewPolicyPage() {
 
         <Card>
           <CardHeader>
-            <div className="flex items-center gap-2">
-              <Cpu className="h-4 w-4 text-muted-foreground" />
-              <CardTitle className="text-base">
-                Equipos incluidos{selected.length > 0 && ` (${selected.length})`}
-              </CardTitle>
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <Cpu className="h-4 w-4 text-muted-foreground" />
+                <CardTitle className="text-base">
+                  Equipos incluidos{selected.length > 0 && ` (${selected.length})`}
+                </CardTitle>
+              </div>
+              {allEquipment.length > 0 && (
+                <button
+                  type="button"
+                  onClick={toggleAll}
+                  className="flex items-center gap-2 rounded-md border px-2.5 py-1 text-xs font-medium transition-colors hover:border-primary/30 hover:bg-muted/40"
+                >
+                  <div className={cn(
+                    "h-3.5 w-3.5 rounded border flex items-center justify-center shrink-0",
+                    allSelected ? "bg-primary border-primary" : "border-input"
+                  )}>
+                    {allSelected && <Check className="h-2 w-2 text-primary-foreground" />}
+                  </div>
+                  Todos (todas las sucursales)
+                </button>
+              )}
             </div>
           </CardHeader>
           <CardContent>
@@ -229,9 +281,26 @@ export default function NewPolicyPage() {
                   const equipment = equipmentMap[branch.id];
                   return (
                     <div key={branch.id}>
-                      <p className="text-sm font-medium mb-2">
-                        {branch.name}{branch.city && <span className="text-muted-foreground font-normal"> · {branch.city}</span>}
-                      </p>
+                      <div className="flex items-center justify-between gap-2 mb-2">
+                        <p className="text-sm font-medium">
+                          {branch.name}{branch.city && <span className="text-muted-foreground font-normal"> · {branch.city}</span>}
+                        </p>
+                        {equipment && equipment.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => toggleBranch(branch.id)}
+                            className="flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-xs font-medium transition-colors hover:border-primary/30 hover:bg-muted/40"
+                          >
+                            <div className={cn(
+                              "h-3.5 w-3.5 rounded border flex items-center justify-center shrink-0",
+                              isBranchAllSelected(branch.id) ? "bg-primary border-primary" : "border-input"
+                            )}>
+                              {isBranchAllSelected(branch.id) && <Check className="h-2 w-2 text-primary-foreground" />}
+                            </div>
+                            Todos
+                          </button>
+                        )}
+                      </div>
                       {!equipment ? (
                         <p className="text-xs text-muted-foreground pl-1">Cargando...</p>
                       ) : !equipment.length ? (

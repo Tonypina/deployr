@@ -30,7 +30,18 @@ const createSchema = z.object({
   branchId:     z.string().optional(),
   equipmentId:  z.string().optional(),
   scheduledAt:  z.string().datetime().optional(),
+  policyId:     z.string().optional(),
 });
+
+// Resolves a policy the admin wants to attach a ticket to: it must belong to the
+// admin's company and cover the same client as the ticket. The caller checks that
+// the policy is ACTIVE so it can return a friendly 422 instead of a control error.
+async function resolvePolicy(policyId: string, companyId: string, clientId: string) {
+  const policy = await prisma.policy.findFirst({ where: { id: policyId, companyId } });
+  if (!policy) throw new Error("NOT_FOUND");
+  if (policy.clientId !== clientId) throw new Error("FORBIDDEN");
+  return policy;
+}
 
 const editSchema = z.object({
   title:       z.string().min(3).optional().transform(cleanOpt),
@@ -40,7 +51,7 @@ const editSchema = z.object({
 });
 
 const assignSchema = z.object({
-  technicianId: z.string(),
+  technicianIds: z.array(z.string()).min(1),
   scheduledAt: z.string().datetime().optional(),
 });
 
@@ -93,14 +104,14 @@ router.get("/", async (req: AuthRequest, res: Response, next: NextFunction) => {
       ...(priority ? { priority } : {}),
       ...(search ? { title: { contains: search, mode: "insensitive" } } : {}),
       ...(clientFilter ? { clientId: clientFilter } : {}),
-      ...(technicianFilter ? { technicianId: technicianFilter } : {}),
+      ...(technicianFilter ? { technicians: { some: { id: technicianFilter } } } : {}),
       ...(branchId ? { branchId } : {}),
       ...(equipmentId ? { equipmentId } : {}),
       ...dateFilter,
     };
 
     if (isAdminRole(role)) where.companyId = companyId;
-    else if (role === Role.TECHNICIAN) where.technicianId = userId;
+    else if (role === Role.TECHNICIAN) where.technicians = { some: { id: userId } };
     else if (role === Role.CLIENT_USER) where.clientId = clientId;
 
     const [tickets, total] = await prisma.$transaction([
@@ -110,7 +121,7 @@ router.get("/", async (req: AuthRequest, res: Response, next: NextFunction) => {
           client: { select: { id: true, name: true } },
           branch: { select: { id: true, name: true, city: true } },
           equipment: { select: { id: true, name: true } },
-          technician: { select: { id: true, name: true } },
+          technicians: { select: { id: true, name: true } },
           report: { select: { id: true } },
         },
         orderBy: { [orderBy === "updatedAt" ? "updatedAt" : "createdAt"]: "desc" },
@@ -206,7 +217,7 @@ router.get("/:id", async (req: AuthRequest, res: Response, next: NextFunction) =
         client: { select: { id: true, name: true } },
         branch: true,
         equipment: { include: { product: true } },
-        technician: { select: { id: true, name: true, email: true, phone: true } },
+        technicians: { select: { id: true, name: true, email: true, phone: true } },
         report: true,
         company: { select: { id: true, name: true } },
         statusHistory: { orderBy: { changedAt: "asc" } },
@@ -215,7 +226,7 @@ router.get("/:id", async (req: AuthRequest, res: Response, next: NextFunction) =
 
     if (!ticket) throw new Error("NOT_FOUND");
     if (isAdminRole(role) && ticket.companyId !== companyId) throw new Error("FORBIDDEN");
-    if (role === Role.TECHNICIAN && ticket.technicianId !== userId) throw new Error("FORBIDDEN");
+    if (role === Role.TECHNICIAN && !ticket.technicians.some((t) => t.id === userId)) throw new Error("FORBIDDEN");
     if (role === Role.CLIENT_USER && ticket.clientId !== clientId) throw new Error("FORBIDDEN");
 
     res.json({ success: true, data: ticket });
@@ -233,11 +244,11 @@ router.get("/:id/previous-service", async (req: AuthRequest, res: Response, next
 
     const current = await prisma.ticket.findUnique({
       where: { id: req.params.id },
-      select: { id: true, companyId: true, clientId: true, technicianId: true, equipmentId: true, createdAt: true },
+      select: { id: true, companyId: true, clientId: true, equipmentId: true, createdAt: true, technicians: { select: { id: true } } },
     });
     if (!current) throw new Error("NOT_FOUND");
     if (isAdminRole(role) && current.companyId !== companyId) throw new Error("FORBIDDEN");
-    if (role === Role.TECHNICIAN && current.technicianId !== userId) throw new Error("FORBIDDEN");
+    if (role === Role.TECHNICIAN && !current.technicians.some((t) => t.id === userId)) throw new Error("FORBIDDEN");
     if (role === Role.CLIENT_USER && current.clientId !== clientId) throw new Error("FORBIDDEN");
 
     // No equipment linked → no service history to compare against.
@@ -265,7 +276,7 @@ router.get("/:id/previous-service", async (req: AuthRequest, res: Response, next
         createdAt: true,
         closedAt: true,
         reportPdfUrl: true,
-        technician: { select: { id: true, name: true } },
+        technicians: { select: { id: true, name: true } },
         branch: { select: { id: true, name: true } },
         report: {
           include: {
@@ -315,9 +326,25 @@ router.post("/", async (req: AuthRequest, res: Response, next: NextFunction) => 
       if (monthlyCount >= limits.ticketMax) throw new Error("PLAN_LIMIT");
     }
 
-    // Every ticket — admin- or client-created — enters the lifecycle as REQUESTED.
-    // The admin uploads a quotation, the client approves it, and only then is the
-    // ticket assigned to a technician.
+    // By default a ticket — admin- or client-created — enters the lifecycle as
+    // REQUESTED: the admin uploads a quotation, the client approves it, and only
+    // then is the ticket assigned to a technician.
+    //
+    // An admin may instead attach the ticket to an active client policy. Policy work
+    // is pre-paid under contract, so it skips the quotation/approval flow and starts
+    // in PENDING_ASSIGN. Only admins can do this; a policyId from a client is ignored.
+    let policyId: string | undefined;
+    let initialStatus: TicketStatus = "REQUESTED";
+    if (isAdminRole(role) && body.policyId) {
+      const policy = await resolvePolicy(body.policyId, resolvedCompanyId, resolvedClientId);
+      if (policy.status !== "ACTIVE") {
+        res.status(422).json({ success: false, message: "Solo se pueden agregar tickets a pólizas activas" });
+        return;
+      }
+      policyId = policy.id;
+      initialStatus = "PENDING_ASSIGN";
+    }
+
     const ticket = await prisma.ticket.create({
       data: {
         title: body.title,
@@ -326,17 +353,18 @@ router.post("/", async (req: AuthRequest, res: Response, next: NextFunction) => 
         branchId: body.branchId,
         equipmentId: body.equipmentId,
         scheduledAt: body.scheduledAt ? new Date(body.scheduledAt) : undefined,
-        status: "REQUESTED",
+        status: initialStatus,
         clientId: resolvedClientId,
         companyId: resolvedCompanyId,
+        policyId,
       },
       include: {
         client: { select: { id: true, name: true } },
-        technician: { select: { id: true, name: true } },
+        technicians: { select: { id: true, name: true } },
       },
     });
 
-    recordStatus(ticket.id, "REQUESTED", req.user!.userId);
+    recordStatus(ticket.id, initialStatus, req.user!.userId);
     res.status(201).json({ success: true, data: ticket });
   } catch (err) {
     next(err);
@@ -457,6 +485,38 @@ router.patch("/:id/reject", async (req: AuthRequest, res: Response, next: NextFu
   }
 });
 
+// PATCH /api/tickets/:id/policy — admin attaches the ticket to an active client policy,
+// skipping the quotation/approval flow (REQUESTED | PENDING_CLIENT_APPROVAL → PENDING_ASSIGN)
+router.patch("/:id/policy", requireAdmin, async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const { policyId } = z.object({ policyId: z.string() }).parse(req.body);
+
+    const ticket = await prisma.ticket.findFirst({ where: { id: req.params.id, companyId: req.user!.companyId! } });
+    if (!ticket) throw new Error("NOT_FOUND");
+    if (ticket.status !== "REQUESTED" && ticket.status !== "PENDING_CLIENT_APPROVAL") {
+      res.status(422).json({ success: false, message: "Solo se puede agregar a una póliza un ticket en estado Solicitado o En aprobación" });
+      return;
+    }
+
+    const policy = await resolvePolicy(policyId, req.user!.companyId!, ticket.clientId);
+    if (policy.status !== "ACTIVE") {
+      res.status(422).json({ success: false, message: "Solo se pueden agregar tickets a pólizas activas" });
+      return;
+    }
+
+    // Policy work is pre-paid, so drop any in-progress quotation and go straight to assignment.
+    const updated = await prisma.ticket.update({
+      where: { id: req.params.id },
+      data: { policyId: policy.id, status: "PENDING_ASSIGN", quotationDocument: null },
+    });
+
+    recordStatus(req.params.id, "PENDING_ASSIGN", req.user!.userId);
+    res.json({ success: true, data: updated });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // PATCH /api/tickets/:id/assign — admin assigns a technician (PENDING_ASSIGN → ASSIGNED)
 router.patch("/:id/assign", requireAdmin, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
@@ -468,20 +528,89 @@ router.patch("/:id/assign", requireAdmin, async (req: AuthRequest, res: Response
       return;
     }
 
-    const tech = await prisma.user.findFirst({ where: { id: body.technicianId, companyId: req.user!.companyId!, role: "TECHNICIAN" } });
-    if (!tech) throw new Error("NOT_FOUND");
+    const techs = await prisma.user.findMany({
+      where: { id: { in: body.technicianIds }, companyId: req.user!.companyId!, role: "TECHNICIAN", isActive: true },
+    });
+    if (techs.length !== body.technicianIds.length) throw new Error("NOT_FOUND");
 
     const updated = await prisma.ticket.update({
       where: { id: req.params.id },
       data: {
-        technicianId: body.technicianId,
+        technicians: { set: body.technicianIds.map((techId) => ({ id: techId })) },
         status: "ASSIGNED",
         scheduledAt: body.scheduledAt ? new Date(body.scheduledAt) : undefined,
       },
-      include: { technician: { select: { id: true, name: true } } },
+      include: { technicians: { select: { id: true, name: true } } },
     });
 
     recordStatus(req.params.id, "ASSIGNED", req.user!.userId);
+    res.json({ success: true, data: updated });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// PATCH /api/tickets/:id/reassign — admin changes the assigned technician (ASSIGNED only, before ON_SITE)
+router.patch("/:id/reassign", requireAdmin, async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const body = assignSchema.parse(req.body);
+    const ticket = await prisma.ticket.findFirst({ where: { id: req.params.id, companyId: req.user!.companyId! } });
+    if (!ticket) throw new Error("NOT_FOUND");
+    if (ticket.status !== "ASSIGNED") {
+      res.status(422).json({ success: false, message: "Solo se pueden reasignar tickets en estado Asignado" });
+      return;
+    }
+
+    const techs = await prisma.user.findMany({
+      where: { id: { in: body.technicianIds }, companyId: req.user!.companyId!, role: "TECHNICIAN", isActive: true },
+    });
+    if (techs.length !== body.technicianIds.length) throw new Error("NOT_FOUND");
+
+    const updated = await prisma.ticket.update({
+      where: { id: req.params.id },
+      data: {
+        technicians: { set: body.technicianIds.map((techId) => ({ id: techId })) },
+        ...(body.scheduledAt ? { scheduledAt: new Date(body.scheduledAt) } : {}),
+      },
+      include: { technicians: { select: { id: true, name: true } } },
+    });
+
+    res.json({ success: true, data: updated });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// PATCH /api/tickets/:id/reschedule — admin reschedules the visit; resets status to ASSIGNED
+// (if a technician is assigned) or PENDING_ASSIGN (if not). Only valid after the assignment
+// step and before the ticket is closed.
+router.patch("/:id/reschedule", requireAdmin, async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const { scheduledAt } = z.object({ scheduledAt: z.string().datetime().nullable() }).parse(req.body);
+    const ticket = await prisma.ticket.findFirst({
+      where: { id: req.params.id, companyId: req.user!.companyId! },
+      include: { technicians: { select: { id: true } } },
+    });
+    if (!ticket) throw new Error("NOT_FOUND");
+
+    const blocked: TicketStatus[] = ["CLOSED", "CANCELLED", "EXPIRED", "REQUESTED", "PENDING_CLIENT_APPROVAL", "PENDING_ASSIGN"];
+    if (blocked.includes(ticket.status)) {
+      res.status(422).json({ success: false, message: "No se puede reprogramar el ticket en su estado actual" });
+      return;
+    }
+
+    const newStatus: TicketStatus = ticket.technicians.length > 0 ? "ASSIGNED" : "PENDING_ASSIGN";
+
+    const updated = await prisma.ticket.update({
+      where: { id: req.params.id },
+      data: {
+        scheduledAt: scheduledAt ? new Date(scheduledAt) : null,
+        status: newStatus,
+        startedAt: null,
+      },
+    });
+
+    recordStatus(req.params.id, newStatus, req.user!.userId);
     res.json({ success: true, data: updated });
   } catch (err) {
     next(err);
@@ -494,9 +623,12 @@ router.patch("/:id/checkin", async (req: AuthRequest, res: Response, next: NextF
     const { role, userId } = req.user!;
     if (role !== Role.TECHNICIAN) throw new Error("FORBIDDEN");
 
-    const ticket = await prisma.ticket.findUnique({ where: { id: req.params.id } });
+    const ticket = await prisma.ticket.findUnique({
+      where: { id: req.params.id },
+      include: { technicians: { select: { id: true } } },
+    });
     if (!ticket) throw new Error("NOT_FOUND");
-    if (ticket.technicianId !== userId) throw new Error("FORBIDDEN");
+    if (!ticket.technicians.some((t) => t.id === userId)) throw new Error("FORBIDDEN");
     if (ticket.status !== "ASSIGNED") {
       res.status(422).json({ success: false, message: "Solo se puede hacer check-in en tickets en estado Asignado" });
       return;
@@ -520,16 +652,19 @@ router.patch("/:id/start", async (req: AuthRequest, res: Response, next: NextFun
     const { role, userId } = req.user!;
     if (role !== Role.TECHNICIAN) throw new Error("FORBIDDEN");
 
-    const ticket = await prisma.ticket.findUnique({ where: { id: req.params.id } });
+    const ticket = await prisma.ticket.findUnique({
+      where: { id: req.params.id },
+      include: { technicians: { select: { id: true } } },
+    });
     if (!ticket) throw new Error("NOT_FOUND");
-    if (ticket.technicianId !== userId) throw new Error("FORBIDDEN");
+    if (!ticket.technicians.some((t) => t.id === userId)) throw new Error("FORBIDDEN");
     if (ticket.status !== "ON_SITE") {
       res.status(422).json({ success: false, message: "Solo se pueden iniciar tickets en estado En sitio" });
       return;
     }
 
     // One-at-a-time constraint
-    const inProgress = await prisma.ticket.findFirst({ where: { technicianId: userId, status: "IN_PROGRESS" } });
+    const inProgress = await prisma.ticket.findFirst({ where: { technicians: { some: { id: userId } }, status: "IN_PROGRESS" } });
     if (inProgress) {
       res.status(422).json({ success: false, message: "Ya tienes un ticket en progreso. Complétalo antes de iniciar otro." });
       return;
@@ -553,9 +688,12 @@ router.patch("/:id/finish", async (req: AuthRequest, res: Response, next: NextFu
     const { role, userId } = req.user!;
     if (role !== Role.TECHNICIAN) throw new Error("FORBIDDEN");
 
-    const ticket = await prisma.ticket.findUnique({ where: { id: req.params.id } });
+    const ticket = await prisma.ticket.findUnique({
+      where: { id: req.params.id },
+      include: { technicians: { select: { id: true } } },
+    });
     if (!ticket) throw new Error("NOT_FOUND");
-    if (ticket.technicianId !== userId) throw new Error("FORBIDDEN");
+    if (!ticket.technicians.some((t) => t.id === userId)) throw new Error("FORBIDDEN");
     if (ticket.status !== "IN_PROGRESS") {
       res.status(422).json({ success: false, message: "Solo se pueden finalizar tickets en estado En progreso" });
       return;
@@ -567,6 +705,28 @@ router.patch("/:id/finish", async (req: AuthRequest, res: Response, next: NextFu
     });
 
     recordStatus(req.params.id, "PENDING_REPORT", userId);
+    res.json({ success: true, data: updated });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// PATCH /api/tickets/:id/take-over — admin skips field workflow and fills the report themselves
+router.patch("/:id/take-over", requireAdmin, async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const ticket = await prisma.ticket.findFirst({ where: { id: req.params.id, companyId: req.user!.companyId! } });
+    if (!ticket) throw new Error("NOT_FOUND");
+    if (!["PENDING_ASSIGN", "ASSIGNED"].includes(ticket.status)) {
+      res.status(422).json({ success: false, message: "Solo se puede tomar un ticket en estado Por asignar o Asignado" });
+      return;
+    }
+
+    const updated = await prisma.ticket.update({
+      where: { id: req.params.id },
+      data: { status: "PENDING_REPORT" },
+    });
+
+    recordStatus(req.params.id, "PENDING_REPORT", req.user!.userId);
     res.json({ success: true, data: updated });
   } catch (err) {
     next(err);

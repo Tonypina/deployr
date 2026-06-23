@@ -43,9 +43,12 @@ router.get("/", requireAdmin, async (req: AuthRequest, res: Response, next: Next
 // GET /api/report-templates/for-ticket/:ticketId — admin + tech
 router.get("/for-ticket/:ticketId", requireAdminOrTech, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
-    const ticket = await prisma.ticket.findUnique({ where: { id: req.params.ticketId } });
+    const ticket = await prisma.ticket.findUnique({
+      where: { id: req.params.ticketId },
+      include: { technicians: { select: { id: true } } },
+    });
     if (!ticket) throw new Error("NOT_FOUND");
-    if (req.user!.role === Role.TECHNICIAN && ticket.technicianId !== req.user!.userId) throw new Error("FORBIDDEN");
+    if (req.user!.role === Role.TECHNICIAN && !ticket.technicians.some((t) => t.id === req.user!.userId)) throw new Error("FORBIDDEN");
 
     const template = await getEffectiveTemplate(req.params.ticketId, ticket.companyId);
     res.json({ success: true, data: template });

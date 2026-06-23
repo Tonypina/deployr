@@ -83,7 +83,7 @@ export default function TicketsPage() {
 
   const technicians = useMemo(() => {
     const map = new Map<string, string>();
-    optionTickets.forEach((t) => { if (t.technician) map.set(t.technician.id, t.technician.name); });
+    optionTickets.forEach((t) => { (t.technicians ?? []).forEach((tech) => map.set(tech.id, tech.name)); });
     return [...map.entries()].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
   }, [optionTickets]);
 
@@ -269,7 +269,7 @@ export default function TicketsPage() {
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="bg-surface-container-low">
-                    {["Ticket", "Cliente", "Técnico", "Sucursal / Equipo", "Fecha", ""].map((h) => (
+                    {["Folio", "Ticket", "Cliente", "Técnico", "Sucursal / Equipo", "Fecha", ""].map((h) => (
                       <th key={h} className="px-6 py-4 font-label-caps text-on-surface-variant border-b border-outline-variant/30">
                         {h}
                       </th>
@@ -279,6 +279,11 @@ export default function TicketsPage() {
                 <tbody className="divide-y divide-outline-variant/10">
                   {tickets.map((t) => (
                     <tr key={t.id} className="hover:bg-white/5 transition-colors">
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className="text-xs font-mono font-semibold text-muted-foreground">
+                          {t.folio != null ? `#${t.folio}` : "—"}
+                        </span>
+                      </td>
                       <td className="px-6 py-4 max-w-[220px]">
                         <p className="font-semibold text-sm text-on-surface truncate">{t.title}</p>
                         <div className="flex items-center gap-1.5 mt-1 flex-wrap">
@@ -290,7 +295,11 @@ export default function TicketsPage() {
                       <td className="px-6 py-4 text-sm text-on-surface-variant whitespace-nowrap">
                         <div className="flex items-center gap-1.5">
                           <User className="h-3.5 w-3.5 shrink-0" />
-                          {t.technician?.name ?? <span className="italic">Sin asignar</span>}
+                          {(t.technicians ?? []).length > 0
+                            ? (t.technicians!.length === 1
+                                ? t.technicians![0].name
+                                : `${t.technicians![0].name} y ${t.technicians!.length - 1} más`)
+                            : <span className="italic">Sin asignar</span>}
                         </div>
                       </td>
                       <td className="px-6 py-4 text-sm text-on-surface-variant">

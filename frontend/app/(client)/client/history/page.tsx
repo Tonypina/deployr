@@ -239,7 +239,7 @@ export default function HistoryPage() {
                       <td className="px-6 py-4 text-sm text-on-surface-variant whitespace-nowrap">
                         <div className="flex items-center gap-1.5">
                           <User className="h-3.5 w-3.5 shrink-0" />
-                          {t.technician?.name ?? <span className="italic">Sin asignar</span>}
+                          {(t.technicians ?? []).map((x) => x.name).join(", ") || <span className="italic">Sin asignar</span>}
                         </div>
                       </td>
                       <td className="px-6 py-4 text-sm text-on-surface-variant whitespace-nowrap">

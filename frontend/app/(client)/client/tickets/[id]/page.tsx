@@ -85,7 +85,12 @@ export default function ClientTicketDetailPage() {
           <div className="grid grid-cols-2 gap-3 text-sm">
             {ticket.branch && <div><span className="text-muted-foreground">Sucursal:</span> <span className="font-medium">{ticket.branch.name}</span></div>}
             {ticket.equipment && <div><span className="text-muted-foreground">Equipo:</span> <span className="font-medium">{ticket.equipment.name}</span></div>}
-            {ticket.technician && <div><span className="text-muted-foreground">Técnico:</span> <span className="font-medium">{ticket.technician.name}</span></div>}
+            {ticket.technicians && ticket.technicians.length > 0 && (
+              <div>
+                <span className="text-muted-foreground">Técnico{ticket.technicians.length > 1 ? "s" : ""}:</span>{" "}
+                <span className="font-medium">{ticket.technicians.map((t) => t.name).join(", ")}</span>
+              </div>
+            )}
             {ticket.scheduledAt && <div><span className="text-muted-foreground">Programado:</span> <span className="font-medium">{formatDate(ticket.scheduledAt)}</span></div>}
             {ticket.closedAt && <div><span className="text-muted-foreground">Cerrado:</span> <span className="font-medium">{formatDate(ticket.closedAt)}</span></div>}
             <div><span className="text-muted-foreground">Creado:</span> <span className="font-medium">{formatDate(ticket.createdAt)}</span></div>

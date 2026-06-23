@@ -215,8 +215,10 @@ export default function TechniciansPage() {
   // Map technicianId → active ticket
   const techTicketMap = new Map<string, Ticket>();
   for (const t of activeTickets) {
-    if (t.technicianId && BUSY_STATUSES.has(t.status) && !techTicketMap.has(t.technicianId)) {
-      techTicketMap.set(t.technicianId, t);
+    if (BUSY_STATUSES.has(t.status)) {
+      for (const tech of (t.technicians ?? [])) {
+        if (!techTicketMap.has(tech.id)) techTicketMap.set(tech.id, t);
+      }
     }
   }
 
