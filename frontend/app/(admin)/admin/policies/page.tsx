@@ -13,7 +13,7 @@ import { usePolicies } from "@/lib/hooks/use-policies";
 import { useDebounce } from "@/lib/hooks/use-debounce";
 import { useAuthStore } from "@/lib/auth-store";
 
-const PLANS_WITH_POLICIES = new Set(["PROFESIONAL", "EMPRESARIAL"]);
+const PLANS_WITH_POLICIES = new Set(["BASICO", "INICIADOR", "PROFESIONAL", "EMPRESARIAL"]);
 
 export default function PoliciesPage() {
   const router = useRouter();
