@@ -124,10 +124,10 @@ export default function ClientDashboard() {
                     {/* Tech avatar */}
                     <div className={cn(
                       "w-10 h-10 rounded-lg flex items-center justify-center font-bold text-sm shrink-0",
-                      t.technician ? avatar.bg : "bg-surface-container-highest",
-                      t.technician ? avatar.text : "text-on-surface-variant"
+                      t.technicians?.[0] ? avatar.bg : "bg-surface-container-highest",
+                      t.technicians?.[0] ? avatar.text : "text-on-surface-variant"
                     )}>
-                      {t.technician ? techInitials(t.technician.name) : <Wrench className="h-4 w-4" />}
+                      {t.technicians?.[0] ? techInitials(t.technicians[0].name) : <Wrench className="h-4 w-4" />}
                     </div>
 
                     <div className="flex-1 min-w-0">
@@ -136,7 +136,7 @@ export default function ClientDashboard() {
                         <StatusBadge ticket={t} />
                       </div>
                       <p className="text-xs text-on-surface-variant truncate">
-                        {t.technician?.name ?? "Sin técnico asignado"}
+                        {(t.technicians ?? []).map((x) => x.name).join(", ") || "Sin técnico asignado"}
                         {t.branch && ` · ${t.branch.name}`}
                         {t.equipment && ` · ${t.equipment.name}`}
                         {t.scheduledAt && ` · ${formatDate(t.scheduledAt)}`}
@@ -229,10 +229,10 @@ export default function ClientDashboard() {
                     {/* Tech avatar */}
                     <div className={cn(
                       "w-10 h-10 rounded-lg flex items-center justify-center font-bold text-sm shrink-0",
-                      t.technician ? avatar.bg : "bg-surface-container-highest",
-                      t.technician ? avatar.text : "text-on-surface-variant"
+                      t.technicians?.[0] ? avatar.bg : "bg-surface-container-highest",
+                      t.technicians?.[0] ? avatar.text : "text-on-surface-variant"
                     )}>
-                      {t.technician ? techInitials(t.technician.name) : <Wrench className="h-4 w-4" />}
+                      {t.technicians?.[0] ? techInitials(t.technicians[0].name) : <Wrench className="h-4 w-4" />}
                     </div>
 
                     <div className="flex-1 min-w-0">
@@ -243,7 +243,7 @@ export default function ClientDashboard() {
                         </span>
                       </div>
                       <p className="text-xs text-on-surface-variant truncate">
-                        {t.technician?.name ?? "Pendiente de asignación"}
+                        {(t.technicians ?? []).map((x) => x.name).join(", ") || "Pendiente de asignación"}
                         {t.branch && ` · ${t.branch.name}`}
                         {t.equipment && ` · ${t.equipment.name}`}
                         {t.scheduledAt && ` · ${formatDate(t.scheduledAt)}`}
@@ -306,7 +306,7 @@ export default function ClientDashboard() {
                         </p>
                       </td>
                       <td className="px-6 py-4 text-sm text-on-surface">
-                        {t.technician?.name ?? <span className="text-on-surface-variant italic">N/A</span>}
+                        {(t.technicians ?? []).map((x) => x.name).join(", ") || <span className="text-on-surface-variant italic">N/A</span>}
                       </td>
                       <td className="px-6 py-4 text-sm text-on-surface max-w-[260px]">
                         <p className="truncate">{t.title}</p>

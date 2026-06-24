@@ -52,8 +52,16 @@ export async function createTicket(data: {
   branchId?: string;
   equipmentId?: string;
   scheduledAt?: string;
+  policyId?: string;
 }) {
   const res = await api.post<Ticket>("/api/tickets", data);
+  return res.data!;
+}
+
+// Admin attaches an existing ticket to an active client policy, skipping the
+// quotation flow (REQUESTED | PENDING_CLIENT_APPROVAL → PENDING_ASSIGN).
+export async function addTicketToPolicy(id: string, policyId: string) {
+  const res = await api.patch<Ticket>(`/api/tickets/${id}/policy`, { policyId });
   return res.data!;
 }
 
@@ -75,8 +83,18 @@ export async function rejectTicket(id: string) {
   return res.data!;
 }
 
-export async function assignTicket(id: string, data: { technicianId: string; scheduledAt?: string }) {
+export async function assignTicket(id: string, data: { technicianIds: string[]; scheduledAt?: string }) {
   const res = await api.patch<Ticket>(`/api/tickets/${id}/assign`, data);
+  return res.data!;
+}
+
+export async function reassignTicket(id: string, data: { technicianIds: string[]; scheduledAt?: string }) {
+  const res = await api.patch<Ticket>(`/api/tickets/${id}/reassign`, data);
+  return res.data!;
+}
+
+export async function rescheduleTicket(id: string, scheduledAt: string | null) {
+  const res = await api.patch<Ticket>(`/api/tickets/${id}/reschedule`, { scheduledAt });
   return res.data!;
 }
 
@@ -117,6 +135,11 @@ export async function approveTicket(id: string) {
 
 export async function reopenTicket(id: string) {
   const res = await api.patch<Ticket>(`/api/tickets/${id}/reopen`, {});
+  return res.data!;
+}
+
+export async function takeOverTicket(id: string) {
+  const res = await api.patch<Ticket>(`/api/tickets/${id}/take-over`, {});
   return res.data!;
 }
 

@@ -61,7 +61,7 @@ function computeTicketCount(startDate: Date, endDate: Date, months: number): num
 router.get("/", async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const { role, companyId, clientId } = req.user!;
-    const { page = "1", limit = "20", search } = req.query as Record<string, string>;
+    const { page = "1", limit = "20", search, clientId: clientFilter, status } = req.query as Record<string, string>;
     const { take, skip } = paginate(Number(page), Number(limit));
 
     const where: Record<string, unknown> = {};
@@ -69,6 +69,9 @@ router.get("/", async (req: AuthRequest, res: Response, next: NextFunction) => {
     else if (role === Role.CLIENT_USER) where.clientId = clientId;
     else throw new Error("FORBIDDEN");
     if (search) where.name = { contains: search, mode: "insensitive" };
+    // Admins may narrow to a single client; client portal users are already scoped above.
+    if (clientFilter && isAdminRole(role)) where.clientId = clientFilter;
+    if (status) where.status = status;
 
     const [policies, total] = await Promise.all([
       prisma.policy.findMany({

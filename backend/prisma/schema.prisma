@@ -168,7 +168,7 @@ model User {
   clientId String?
   client   Client? @relation(fields: [clientId], references: [id], onDelete: SetNull)
 
-  assignedTickets Ticket[] @relation("TechnicianTickets")
+  assignedTickets  Ticket[] @relation("TechnicianTickets")
 }
 
 model Product {
@@ -253,6 +253,7 @@ model Equipment {
 
 model Ticket {
   id          String       @id @default(cuid())
+  folio       Int          @unique @default(autoincrement())
   title       String
   description String?
   status      TicketStatus @default(REQUESTED)
@@ -275,8 +276,7 @@ model Ticket {
   equipmentId String?
   equipment   Equipment? @relation(fields: [equipmentId], references: [id], onDelete: SetNull)
 
-  technicianId String?
-  technician   User?   @relation("TechnicianTickets", fields: [technicianId], references: [id], onDelete: SetNull)
+  technicians  User[]  @relation("TechnicianTickets")
 
   policyId String?
   policy   Policy? @relation(fields: [policyId], references: [id], onDelete: SetNull)

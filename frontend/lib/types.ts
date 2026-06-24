@@ -167,6 +167,7 @@ export interface TicketStatusHistory {
 
 export interface Ticket {
   id: string;
+  folio?: number;
   title: string;
   description?: string;
   status: TicketStatus;
@@ -178,7 +179,6 @@ export interface Ticket {
   clientId: string;
   branchId?: string;
   equipmentId?: string;
-  technicianId?: string;
   reviewDocument?: string | null;
   quotationDocument?: string | null;
   reportPdfUrl?: string | null;
@@ -186,7 +186,7 @@ export interface Ticket {
   client?: { id: string; name: string };
   branch?: { id: string; name: string; city?: string };
   equipment?: { id: string; name: string };
-  technician?: { id: string; name: string };
+  technicians?: { id: string; name: string; email?: string; phone?: string }[];
   report?: { id: string } | null;
   policyId?: string | null;
   policy?: { id: string; name: string } | null;

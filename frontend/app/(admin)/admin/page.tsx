@@ -35,8 +35,10 @@ export default function AdminDashboard() {
   // Build technicianId → active ticket map (first ASSIGNED/IN_PROGRESS wins)
   const techTicketMap = new Map<string, TicketType>();
   for (const t of activeTickets) {
-    if (t.technicianId && BUSY_STATUSES.has(t.status) && !techTicketMap.has(t.technicianId)) {
-      techTicketMap.set(t.technicianId, t);
+    if (BUSY_STATUSES.has(t.status)) {
+      for (const tech of (t.technicians ?? [])) {
+        if (!techTicketMap.has(tech.id)) techTicketMap.set(tech.id, t);
+      }
     }
   }
 

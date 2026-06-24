@@ -165,7 +165,7 @@ export async function generateTicketPdf(ticketId: string): Promise<string | null
         client: true,
         branch: true,
         equipment: true,
-        technician: { select: { name: true } },
+        technicians: { select: { name: true } },
         report: {
           include: {
             template: {
@@ -181,7 +181,8 @@ export async function generateTicketPdf(ticketId: string): Promise<string | null
 
     if (!ticket?.report) return null;
 
-    const { company, client, branch, equipment, report, technician } = ticket;
+    const { company, client, branch, equipment, report, technicians } = ticket;
+    const technician = technicians?.[0] ?? null;
     const template = report.template as {
       fields: { id: string; label: string; type: string }[];
     } | null;
