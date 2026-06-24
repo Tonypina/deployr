@@ -13,7 +13,7 @@ import { Policy } from "@/lib/types";
 import { usePageTitle } from "@/lib/page-title";
 import { cn, policyStatusLabel, policyStatusColor, recurrenceLabel, statusLabel, statusColor, formatDate } from "@/lib/utils";
 
-const PLANS_WITH_POLICIES = new Set(["PROFESIONAL", "EMPRESARIAL"]);
+const PLANS_WITH_POLICIES = new Set(["BASICO", "INICIADOR", "PROFESIONAL", "EMPRESARIAL"]);
 
 export default function PolicyDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
