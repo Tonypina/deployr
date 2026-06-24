@@ -243,7 +243,7 @@ export default function HistoryPage() {
                         </div>
                       </td>
                       <td className="px-6 py-4 text-sm text-on-surface-variant whitespace-nowrap">
-                        {formatDate(t.closedAt ?? t.scheduledAt ?? t.createdAt)}
+                        {formatDate(t.scheduledAt ?? t.closedAt ?? t.createdAt)}
                       </td>
                       <td className="px-6 py-4">
                         <Link href={`/client/tickets/${t.id}`} className="inline-flex items-center justify-center h-8 w-8 rounded-md hover:bg-white/10 transition-colors">

@@ -92,6 +92,156 @@ export default function ClientDashboard() {
       {/* ── Bento grid ─────────────────────────────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
 
+        {/* Service History — 12/12 */}
+        <div className="lg:col-span-12 glass-card rounded-xl overflow-hidden">
+          <div className="px-5 py-4 border-b border-white/5 bg-white/5 flex justify-between items-center">
+            <h2 className="text-sm font-semibold text-on-surface flex items-center gap-2">
+              <History className="h-4 w-4" />
+              Historial de servicio reciente
+            </h2>
+            <Link
+              href="/client/history"
+              className="text-xs text-primary hover:underline"
+            >
+              Ver historial completo
+            </Link>
+          </div>
+
+          <div className="overflow-x-auto">
+            {loading ? (
+              <div className="p-5">
+                <p className="text-sm text-muted-foreground">Cargando...</p>
+              </div>
+            ) : !historyRows.length ? (
+              <div className="p-10 flex flex-col items-center gap-2">
+                <History className="h-8 w-8 text-on-surface-variant opacity-30" />
+                <p className="text-sm text-muted-foreground">Sin historial de servicio</p>
+              </div>
+            ) : (
+              <table className="w-full text-left">
+                <thead>
+                  <tr className="border-b border-outline-variant/20">
+                    {["Fecha & Ticket", "Técnico", "Servicio realizado", "Estado", "Acciones"].map((h) => (
+                      <th key={h} className="px-6 py-4 font-label-caps text-on-surface-variant">
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/5">
+                  {historyRows.map((t) => (
+                    <tr key={t.id} className="hover:bg-white/5 transition-colors">
+                      <td className="px-6 py-4">
+                        <p className="font-semibold text-sm text-on-surface">
+                          {new Intl.DateTimeFormat("es-MX", { dateStyle: "medium" }).format(new Date(t.scheduledAt ?? t.createdAt))}
+                        </p>
+                        <p className="text-xs text-on-surface-variant font-label-caps mt-0.5">
+                          #{t.id.slice(-6).toUpperCase()}
+                        </p>
+                      </td>
+                      <td className="px-6 py-4 text-sm text-on-surface">
+                        {(t.technicians ?? []).map((x) => x.name).join(", ") || <span className="text-on-surface-variant italic">N/A</span>}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-on-surface max-w-[260px]">
+                        <p className="truncate">{t.title}</p>
+                        {t.branch && (
+                          <p className="text-xs text-on-surface-variant truncate">{t.branch.name}</p>
+                        )}
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className={cn(
+                          "text-xs px-2 py-1 rounded-full font-bold uppercase tracking-wider",
+                          statusColor[t.status]
+                        )}>
+                          {statusLabel[t.status]}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-1">
+                          <Link
+                            href={`/client/tickets/${t.id}`}
+                            className="p-2 rounded-full hover:bg-primary/20 text-primary transition-colors"
+                            title="Ver ticket"
+                          >
+                            <FileText className="h-4 w-4" />
+                          </Link>
+                          {t.report && (
+                            <Link
+                              href={`/client/tickets/${t.id}`}
+                              className="p-2 rounded-full hover:bg-primary/20 text-primary transition-colors"
+                              title="Ver reporte"
+                            >
+                              <XCircle className="h-4 w-4" />
+                            </Link>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </div>
+
+        {/* Upcoming Visits — 8/12 */}
+        <div className="lg:col-span-12 glass-card rounded-xl overflow-hidden flex flex-col">
+          <div className="px-5 py-4 border-b border-white/5 bg-white/5 flex justify-between items-center">
+            <h2 className="text-sm font-semibold text-primary flex items-center gap-2">
+              <Truck className="h-4 w-4" />
+              Próximas visitas
+            </h2>
+          </div>
+
+          <div className="p-5 space-y-3 flex-1">
+            {loading ? (
+              <p className="text-sm text-muted-foreground">Cargando...</p>
+            ) : !upcomingVisits.length ? (
+              <div className="flex flex-col items-center justify-center py-10 gap-2">
+                <CheckCircle2 className="h-8 w-8 text-tertiary opacity-50" />
+                <p className="text-sm text-muted-foreground">Sin visitas programadas</p>
+              </div>
+            ) : (
+              upcomingVisits.map((t, i) => {
+                const avatar = AVATAR_COLORS[i % AVATAR_COLORS.length];
+                return (
+                  <Link
+                    key={t.id}
+                    href={`/client/tickets/${t.id}`}
+                    className="flex items-center gap-4 p-4 rounded-lg bg-surface-container-high/50 border border-white/5 hover:bg-surface-container-high transition-colors"
+                  >
+                    {/* Tech avatar */}
+                    <div className={cn(
+                      "w-10 h-10 rounded-lg flex items-center justify-center font-bold text-sm shrink-0",
+                      t.technicians?.[0] ? avatar.bg : "bg-surface-container-highest",
+                      t.technicians?.[0] ? avatar.text : "text-on-surface-variant"
+                    )}>
+                      {t.technicians?.[0] ? techInitials(t.technicians[0].name) : <Wrench className="h-4 w-4" />}
+                    </div>
+
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start justify-between gap-2 mb-1">
+                        <p className="text-sm font-semibold text-on-surface truncate">{t.title}</p>
+                        <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-primary/10 text-primary shrink-0">
+                          Programada
+                        </span>
+                      </div>
+                      <p className="text-xs text-on-surface-variant truncate">
+                        {(t.technicians ?? []).map((x) => x.name).join(", ") || "Pendiente de asignación"}
+                        {t.branch && ` · ${t.branch.name}`}
+                        {t.equipment && ` · ${t.equipment.name}`}
+                        {t.scheduledAt && ` · ${formatDate(t.scheduledAt)}`}
+                      </p>
+                    </div>
+
+                    <ChevronRight className="h-4 w-4 text-on-surface-variant shrink-0" />
+                  </Link>
+                );
+              })
+            )}
+          </div>
+        </div>
+        
         {/* Active Visits — 8/12 */}
         <div className="lg:col-span-8 glass-card rounded-xl overflow-hidden flex flex-col">
           <div className="px-5 py-4 border-b border-white/5 bg-white/5 flex justify-between items-center">
@@ -197,156 +347,6 @@ export default function ClientDashboard() {
             >
               Ver todas las sucursales
             </Link>
-          </div>
-        </div>
-
-        {/* Upcoming Visits — 8/12 */}
-        <div className="lg:col-span-12 glass-card rounded-xl overflow-hidden flex flex-col">
-          <div className="px-5 py-4 border-b border-white/5 bg-white/5 flex justify-between items-center">
-            <h2 className="text-sm font-semibold text-primary flex items-center gap-2">
-              <Truck className="h-4 w-4" />
-              Próximas visitas
-            </h2>
-          </div>
-
-          <div className="p-5 space-y-3 flex-1">
-            {loading ? (
-              <p className="text-sm text-muted-foreground">Cargando...</p>
-            ) : !upcomingVisits.length ? (
-              <div className="flex flex-col items-center justify-center py-10 gap-2">
-                <CheckCircle2 className="h-8 w-8 text-tertiary opacity-50" />
-                <p className="text-sm text-muted-foreground">Sin visitas programadas</p>
-              </div>
-            ) : (
-              upcomingVisits.map((t, i) => {
-                const avatar = AVATAR_COLORS[i % AVATAR_COLORS.length];
-                return (
-                  <Link
-                    key={t.id}
-                    href={`/client/tickets/${t.id}`}
-                    className="flex items-center gap-4 p-4 rounded-lg bg-surface-container-high/50 border border-white/5 hover:bg-surface-container-high transition-colors"
-                  >
-                    {/* Tech avatar */}
-                    <div className={cn(
-                      "w-10 h-10 rounded-lg flex items-center justify-center font-bold text-sm shrink-0",
-                      t.technicians?.[0] ? avatar.bg : "bg-surface-container-highest",
-                      t.technicians?.[0] ? avatar.text : "text-on-surface-variant"
-                    )}>
-                      {t.technicians?.[0] ? techInitials(t.technicians[0].name) : <Wrench className="h-4 w-4" />}
-                    </div>
-
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-start justify-between gap-2 mb-1">
-                        <p className="text-sm font-semibold text-on-surface truncate">{t.title}</p>
-                        <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-primary/10 text-primary shrink-0">
-                          Programada
-                        </span>
-                      </div>
-                      <p className="text-xs text-on-surface-variant truncate">
-                        {(t.technicians ?? []).map((x) => x.name).join(", ") || "Pendiente de asignación"}
-                        {t.branch && ` · ${t.branch.name}`}
-                        {t.equipment && ` · ${t.equipment.name}`}
-                        {t.scheduledAt && ` · ${formatDate(t.scheduledAt)}`}
-                      </p>
-                    </div>
-
-                    <ChevronRight className="h-4 w-4 text-on-surface-variant shrink-0" />
-                  </Link>
-                );
-              })
-            )}
-          </div>
-        </div>
-
-        {/* Service History — 12/12 */}
-        <div className="lg:col-span-12 glass-card rounded-xl overflow-hidden">
-          <div className="px-5 py-4 border-b border-white/5 bg-white/5 flex justify-between items-center">
-            <h2 className="text-sm font-semibold text-on-surface flex items-center gap-2">
-              <History className="h-4 w-4" />
-              Historial de servicio reciente
-            </h2>
-            <Link
-              href="/client/history"
-              className="text-xs text-primary hover:underline"
-            >
-              Ver historial completo
-            </Link>
-          </div>
-
-          <div className="overflow-x-auto">
-            {loading ? (
-              <div className="p-5">
-                <p className="text-sm text-muted-foreground">Cargando...</p>
-              </div>
-            ) : !historyRows.length ? (
-              <div className="p-10 flex flex-col items-center gap-2">
-                <History className="h-8 w-8 text-on-surface-variant opacity-30" />
-                <p className="text-sm text-muted-foreground">Sin historial de servicio</p>
-              </div>
-            ) : (
-              <table className="w-full text-left">
-                <thead>
-                  <tr className="border-b border-outline-variant/20">
-                    {["Fecha & Ticket", "Técnico", "Servicio realizado", "Estado", "Acciones"].map((h) => (
-                      <th key={h} className="px-6 py-4 font-label-caps text-on-surface-variant">
-                        {h}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-white/5">
-                  {historyRows.map((t) => (
-                    <tr key={t.id} className="hover:bg-white/5 transition-colors">
-                      <td className="px-6 py-4">
-                        <p className="font-semibold text-sm text-on-surface">
-                          {new Intl.DateTimeFormat("es-MX", { dateStyle: "medium" }).format(new Date(t.closedAt ?? t.createdAt))}
-                        </p>
-                        <p className="text-xs text-on-surface-variant font-label-caps mt-0.5">
-                          #{t.id.slice(-6).toUpperCase()}
-                        </p>
-                      </td>
-                      <td className="px-6 py-4 text-sm text-on-surface">
-                        {(t.technicians ?? []).map((x) => x.name).join(", ") || <span className="text-on-surface-variant italic">N/A</span>}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-on-surface max-w-[260px]">
-                        <p className="truncate">{t.title}</p>
-                        {t.branch && (
-                          <p className="text-xs text-on-surface-variant truncate">{t.branch.name}</p>
-                        )}
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className={cn(
-                          "text-xs px-2 py-1 rounded-full font-bold uppercase tracking-wider",
-                          statusColor[t.status]
-                        )}>
-                          {statusLabel[t.status]}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-1">
-                          <Link
-                            href={`/client/tickets/${t.id}`}
-                            className="p-2 rounded-full hover:bg-primary/20 text-primary transition-colors"
-                            title="Ver ticket"
-                          >
-                            <FileText className="h-4 w-4" />
-                          </Link>
-                          {t.report && (
-                            <Link
-                              href={`/client/tickets/${t.id}`}
-                              className="p-2 rounded-full hover:bg-primary/20 text-primary transition-colors"
-                              title="Ver reporte"
-                            >
-                              <XCircle className="h-4 w-4" />
-                            </Link>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
           </div>
         </div>
 
