@@ -299,7 +299,7 @@ export default function ClientDashboard() {
                     <tr key={t.id} className="hover:bg-white/5 transition-colors">
                       <td className="px-6 py-4">
                         <p className="font-semibold text-sm text-on-surface">
-                          {new Intl.DateTimeFormat("es-MX", { dateStyle: "medium" }).format(new Date(t.closedAt ?? t.createdAt))}
+                          {new Intl.DateTimeFormat("es-MX", { dateStyle: "medium" }).format(new Date(t.scheduledAt ?? t.createdAt))}
                         </p>
                         <p className="text-xs text-on-surface-variant font-label-caps mt-0.5">
                           #{t.id.slice(-6).toUpperCase()}
