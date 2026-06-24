@@ -260,10 +260,10 @@ export async function generateTicketPdf(ticketId: string): Promise<string | null
       [
         {
           label: "FECHA",
-          value: fmtDate(ticket.closedAt ?? report.createdAt),
+          value: fmtDate(ticket.scheduledAt ?? report.createdAt),
           w: CW / 3,
         },
-        { label: "ID INCIDENCIA", value: "", w: CW / 3 },
+        { label: "ID INCIDENCIA", value: report.id, w: CW / 3 },
         { label: "FOLIO", value: report.folio ?? "—", w: CW / 3 },
       ],
       y,
@@ -280,7 +280,7 @@ export async function generateTicketPdf(ticketId: string): Promise<string | null
         { label: "CLIENTE", value: client.name, w: CW * 0.65 },
         {
           label: "FECHA DE TRABAJO",
-          value: fmtDate(ticket.startedAt ?? ticket.scheduledAt),
+          value: fmtDate(ticket.scheduledAt ?? ticket.scheduledAt),
           w: CW * 0.35,
         },
       ],
@@ -323,9 +323,10 @@ export async function generateTicketPdf(ticketId: string): Promise<string | null
       y = tRow(
         doc,
         [
-          { label: "MARCA", value: equipment.brand ?? "—", w: CW / 3 },
-          { label: "MODELO", value: equipment.model ?? "—", w: CW / 3 },
-          { label: "SERIE", value: equipment.serialNumber ?? "—", w: CW / 3 },
+          { label: "NOMBRE", value: equipment.name ?? "—", w: CW / 4 },
+          { label: "MARCA", value: equipment.brand ?? "—", w: CW / 4 },
+          { label: "MODELO", value: equipment.model ?? "—", w: CW / 4 },
+          { label: "SERIE", value: equipment.serialNumber ?? "—", w: CW / 4 },
         ],
         y,
       );
