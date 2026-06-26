@@ -8,7 +8,7 @@ import { useTicket } from "@/lib/hooks/use-ticket";
 import { approveTicket, rejectTicket } from "@/lib/services/tickets";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { cn, statusColor, statusLabel, priorityColor, priorityLabel, formatDate } from "@/lib/utils";
+import { cn, statusColor, statusLabel, priorityColor, priorityLabel, formatDate, formatDateOnly } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
 import { ImageLightbox } from "@/components/ui/image-lightbox";
 
@@ -207,7 +207,7 @@ export default function ClientTicketDetailPage() {
                       ))}
                     </div>
                   ) : field.type === "DATE" ? (
-                    <p>{formatDate(value)}</p>
+                    <p>{formatDateOnly(value)}</p>
                   ) : (
                     <p>{value}</p>
                   )}

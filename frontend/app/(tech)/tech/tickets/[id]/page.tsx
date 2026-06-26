@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { cn, statusColor, statusLabel, priorityColor, priorityLabel, formatDate } from "@/lib/utils";
+import { cn, statusColor, statusLabel, priorityColor, priorityLabel, formatDate, formatDateOnly } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
 import { ImageLightbox } from "@/components/ui/image-lightbox";
 import { ChevronLeft, Play, MapPin, CheckSquare, X, ImagePlus, Plus, Trash2, PencilLine, Check, Download } from "lucide-react";
@@ -62,7 +62,7 @@ function renderReportValue(field: ReportTemplateField, value: string, onZoom: (s
       </div>
     );
   }
-  if (field.type === "DATE") return <p>{formatDate(value)}</p>;
+  if (field.type === "DATE") return <p>{formatDateOnly(value)}</p>;
   return <p>{value}</p>;
 }
 

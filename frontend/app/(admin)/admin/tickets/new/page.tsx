@@ -26,7 +26,7 @@ const schema = z.object({
   clientId: z.string().min(1, "Selecciona un cliente"),
   branchId: z.string().min(1, "Selecciona una sucursal"),
   equipmentId: z.string().min(1, "Selecciona un equipo"),
-  scheduledAt: z.string().optional(),
+  scheduledAt: z.string().min(1, "Selecciona una fecha programada"),
   policyId: z.string().optional(),
 });
 
@@ -155,8 +155,14 @@ export default function NewTicketPage() {
               </div>
 
               <div className="grid gap-2">
-                <Label htmlFor="scheduledAt">Fecha programada</Label>
-                <Input id="scheduledAt" type="datetime-local" {...register("scheduledAt")} />
+                <Label htmlFor="scheduledAt">Fecha programada *</Label>
+                <Input
+                  id="scheduledAt"
+                  type="datetime-local"
+                  className={cn(errors.scheduledAt && "border-destructive")}
+                  {...register("scheduledAt")}
+                />
+                {errors.scheduledAt && <p className="text-xs text-destructive">{errors.scheduledAt.message}</p>}
               </div>
             </CardContent>
           </Card>
