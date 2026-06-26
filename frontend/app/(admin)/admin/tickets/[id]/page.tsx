@@ -216,7 +216,7 @@ function SignatureField({
         <div className="fixed inset-0 z-50 flex flex-col bg-white">
           <div className="flex items-center justify-between px-4 py-3 border-b border-border shrink-0">
             <div>
-              <p className="font-semibold text-sm">Firma</p>
+              <h2 className="text-base font-semibold text-sm">Firma</h2>
               <p className="text-xs text-muted-foreground">Dibuja tu firma en el área de abajo</p>
             </div>
             <div className="flex gap-2">
@@ -668,10 +668,10 @@ export default function AdminTicketDetailPage() {
 
       {ticket.reportPdfUrl && (
         <Card className="border-blue-200 bg-blue-50">
-          <CardContent className="pt-6">
+          <CardContent className="">
             <div className="flex items-center justify-between gap-4">
               <div>
-                <p className="font-semibold text-blue-900">Orden de trabajo generada</p>
+                <h2 className="text-base font-semibold text-blue-900">Orden de trabajo generada</h2>
                 <p className="text-sm text-blue-700 mt-0.5">El documento de servicio está listo para descargar.</p>
               </div>
               <Button asChild className="bg-blue-700 hover:bg-blue-800 shrink-0">
@@ -779,10 +779,10 @@ export default function AdminTicketDetailPage() {
       {/* PENDING_CLIENT_APPROVAL — waiting for client to approve the quotation */}
       {ticket.status === "PENDING_CLIENT_APPROVAL" && (
         <Card className="border-amber-200 bg-amber-50">
-          <CardContent className="pt-6">
+          <CardContent className="">
             <div className="flex items-center justify-between gap-4">
               <div>
-                <p className="font-semibold text-amber-900">Esperando aprobación del cliente</p>
+                <h2 className="text-base font-semibold text-amber-900">Esperando aprobación del cliente</h2>
                 <p className="text-sm text-amber-700 mt-0.5">
                   Se envió la cotización al cliente.{" "}
                   {ticket.quotationDocument && (
@@ -928,11 +928,11 @@ export default function AdminTicketDetailPage() {
       {/* ON_SITE — technician has checked in */}
       {ticket.status === "ON_SITE" && (
         <Card className="border-cyan-200 bg-cyan-50">
-          <CardContent className="pt-6">
+          <CardContent className="">
             <div className="flex items-center gap-3">
               <MapPin className="h-5 w-5 text-cyan-700 shrink-0" />
               <div>
-                <p className="font-semibold text-cyan-900">Técnico en sitio</p>
+                <h2 className="text-base font-semibold text-cyan-900">Técnico en sitio</h2>
                 <p className="text-sm text-cyan-700 mt-0.5">El técnico llegó a la sucursal y registró su llegada. Iniciará el trabajo en breve.</p>
               </div>
             </div>
@@ -974,11 +974,11 @@ export default function AdminTicketDetailPage() {
       )}
       {ticket.status === "PENDING_REPORT" && (ticket.technicians ?? []).length > 0 && (
         <Card className="border-violet-200 bg-violet-50">
-          <CardContent className="pt-6">
+          <CardContent className="">
             <div className="flex items-center gap-3">
               <ClipboardList className="h-5 w-5 text-violet-700 shrink-0" />
               <div>
-                <p className="font-semibold text-violet-900">Reporte pendiente</p>
+                <h2 className="text-base font-semibold text-violet-900">Reporte pendiente</h2>
                 <p className="text-sm text-violet-700 mt-0.5">El técnico finalizó el trabajo y está completando el reporte de servicio.</p>
               </div>
             </div>
@@ -989,10 +989,10 @@ export default function AdminTicketDetailPage() {
       {/* Close ticket — only when COMPLETED */}
       {ticket.status === "COMPLETED" && (
         <Card className="border-green-200 bg-green-50">
-          <CardContent className="pt-6">
+          <CardContent className="">
             <div className="flex items-center justify-between gap-4">
               <div>
-                <p className="font-semibold text-green-900">Ticket completado</p>
+                <h2 className="text-base font-semibold text-green-900">Ticket completado</h2>
                 <p className="text-sm text-green-700 mt-0.5">El técnico envió el reporte. Revísalo y cierra el ticket.</p>
               </div>
               <div className="flex gap-2 shrink-0">
@@ -1080,10 +1080,10 @@ export default function AdminTicketDetailPage() {
       {/* PENDING_APPROVAL — waiting for client to approve */}
       {ticket.status === "PENDING_APPROVAL" && (
         <Card className="border-amber-200 bg-amber-50">
-          <CardContent className="pt-6">
+          <CardContent className="">
             <div className="flex items-center justify-between gap-4">
               <div>
-                <p className="font-semibold text-amber-900">Esperando aprobación del cliente</p>
+                <h2 className="text-base font-semibold text-amber-900">Esperando aprobación del cliente</h2>
                 <p className="text-sm text-amber-700 mt-0.5">
                   Se envió el documento al cliente.{" "}
                   {ticket.reviewDocument && (
