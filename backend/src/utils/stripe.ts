@@ -90,7 +90,7 @@ export function planFromPriceId(priceId: string): PlanTier {
 // Map a Stripe subscription status string → local SubscriptionStatus enum.
 export function stripeStatusToLocal(status: string): SubscriptionStatus {
   const map: Record<string, SubscriptionStatus> = {
-    trialing:           "TRIALING",
+    trialing:           "ACTIVE",
     active:             "ACTIVE",
     past_due:           "PAST_DUE",
     canceled:           "CANCELLED",
