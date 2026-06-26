@@ -7,13 +7,29 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import Link from "next/link";
 import { ChevronLeft, Plus, Trash2, GripVertical, Star, X } from "lucide-react";
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  KeyboardSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  arrayMove,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { ReportTemplateField, FieldType } from "@/lib/types";
 import { useReportTemplate } from "@/lib/hooks/use-report-template";
 import { usePageTitle } from "@/lib/page-title";
 import {
-  TemplateDetail,
   updateTemplate, deleteTemplate as deleteTemplateService, setDefaultTemplate,
-  addTemplateField, updateTemplateField, deleteTemplateField,
+  addTemplateField, updateTemplateField, deleteTemplateField, reorderTemplateField,
 } from "@/lib/services/report-templates";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,12 +47,10 @@ const fieldSchema = z.object({
   label: z.string().min(1, "Requerido"),
   type: z.enum(["TEXT", "TEXTAREA", "DATE", "NUMBER", "PHOTO", "MULTISELECT", "SIGNATURE"]),
   required: z.boolean(),
-  order: z.coerce.number().int(),
 });
 
 type NameForm = z.infer<typeof nameSchema>;
 type FieldForm = z.infer<typeof fieldSchema>;
-
 type FieldPayload = FieldForm & { options: string[] };
 
 const fieldTypeLabel: Record<FieldType, string> = {
@@ -56,6 +70,7 @@ export default function ReportTemplateDetailPage() {
   const [addingField, setAddingField] = useState(false);
   const [editingFieldId, setEditingFieldId] = useState<string | null>(null);
   const [acting, setActing] = useState(false);
+  const [localFields, setLocalFields] = useState<ReportTemplateField[]>([]);
 
   const nameForm = useForm<NameForm>({ resolver: zodResolver(nameSchema) });
   const { template, loading, refetch } = useReportTemplate(id);
@@ -64,8 +79,32 @@ export default function ReportTemplateDetailPage() {
   useEffect(() => {
     if (template) {
       nameForm.reset({ name: template.name, description: template.description ?? "" });
+      setLocalFields([...template.fields].sort((a, b) => a.order - b.order));
     }
   }, [template, nameForm]);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
+  async function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const oldIndex = localFields.findIndex((f) => f.id === active.id);
+    const newIndex = localFields.findIndex((f) => f.id === over.id);
+    const reordered = arrayMove(localFields, oldIndex, newIndex);
+    setLocalFields(reordered);
+
+    try {
+      await Promise.all(reordered.map((f, i) => reorderTemplateField(id, f.id, i + 1)));
+      refetch();
+    } catch {
+      toast({ variant: "destructive", title: "Error al reordenar" });
+      setLocalFields([...template!.fields].sort((a, b) => a.order - b.order));
+    }
+  }
 
   async function saveName(data: NameForm) {
     setActing(true);
@@ -108,7 +147,7 @@ export default function ReportTemplateDetailPage() {
   async function addField(payload: FieldPayload) {
     setActing(true);
     try {
-      await addTemplateField(id, payload);
+      await addTemplateField(id, { ...payload, order: localFields.length + 1 });
       toast({ title: "Campo agregado" });
       setAddingField(false);
       refetch();
@@ -122,7 +161,8 @@ export default function ReportTemplateDetailPage() {
   async function saveField(fieldId: string, payload: FieldPayload) {
     setActing(true);
     try {
-      await updateTemplateField(id, fieldId, payload);
+      const currentOrder = (localFields.findIndex((f) => f.id === fieldId) + 1) || 1;
+      await updateTemplateField(id, fieldId, { ...payload, order: currentOrder });
       toast({ title: "Campo actualizado" });
       setEditingFieldId(null);
       refetch();
@@ -143,6 +183,8 @@ export default function ReportTemplateDetailPage() {
       toast({ variant: "destructive", title: "Error", description: (e as Error).message });
     }
   }
+
+  const dndDisabled = editingFieldId !== null || addingField;
 
   if (loading) return <p className="text-sm text-muted-foreground p-6">Cargando...</p>;
   if (!template) return null;
@@ -215,7 +257,7 @@ export default function ReportTemplateDetailPage() {
           <div className="flex items-center justify-between">
             <CardTitle className="text-base">
               Campos
-              <span className="ml-2 text-sm font-normal text-muted-foreground">({template.fields.length})</span>
+              <span className="ml-2 text-sm font-normal text-muted-foreground">({localFields.length})</span>
             </CardTitle>
             {!addingField && (
               <Button variant="outline" size="sm" onClick={() => setAddingField(true)}>
@@ -225,58 +267,35 @@ export default function ReportTemplateDetailPage() {
           </div>
         </CardHeader>
         <CardContent className="grid gap-3">
-          {template.fields.length === 0 && !addingField && (
+          {localFields.length === 0 && !addingField && (
             <p className="text-sm text-muted-foreground">Sin campos. Agrega el primero.</p>
           )}
 
-          {template.fields.map((field) => (
-            <div key={field.id} className="border border-border rounded-lg">
-              {editingFieldId === field.id ? (
-                <div className="p-4">
-                  <FieldFormInner
-                    initialValues={{ label: field.label, type: field.type, required: field.required, order: field.order, options: field.options }}
-                    onSubmit={(payload) => saveField(field.id, payload)}
-                    onCancel={() => setEditingFieldId(null)}
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+            <SortableContext items={localFields.map((f) => f.id)} strategy={verticalListSortingStrategy}>
+              <div className="grid gap-3">
+                {localFields.map((field, index) => (
+                  <SortableField
+                    key={field.id}
+                    field={field}
+                    index={index}
+                    editingFieldId={editingFieldId}
+                    setEditingFieldId={setEditingFieldId}
+                    saveField={saveField}
+                    deleteField={deleteField}
                     acting={acting}
+                    disabled={dndDisabled}
                   />
-                </div>
-              ) : (
-                <div className="flex items-center gap-3 px-3 py-2.5">
-                  <GripVertical className="h-4 w-4 text-muted-foreground shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-medium text-sm">{field.label}</span>
-                      {field.required && (
-                        <span className="text-xs px-1.5 py-0.5 rounded bg-red-100 text-red-700">Requerido</span>
-                      )}
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      {fieldTypeLabel[field.type]}
-                      {field.type === "MULTISELECT" && ` · ${field.options.length} opciones`}
-                      {" · orden "}{field.order}
-                    </p>
-                  </div>
-                  <div className="flex gap-1 shrink-0">
-                    <Button variant="ghost" size="sm" onClick={() => setEditingFieldId(field.id)}>Editar</Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 text-destructive hover:text-destructive"
-                      onClick={() => deleteField(field.id)}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
-                </div>
-              )}
-            </div>
-          ))}
+                ))}
+              </div>
+            </SortableContext>
+          </DndContext>
 
           {addingField && (
             <div className="border border-primary/40 rounded-lg p-4">
               <p className="text-sm font-medium mb-3">Nuevo campo</p>
               <FieldFormInner
-                initialValues={{ type: "TEXTAREA", required: false, order: template.fields.length + 1, options: [] }}
+                initialValues={{ type: "TEXTAREA", required: false, options: [] }}
                 onSubmit={addField}
                 onCancel={() => setAddingField(false)}
                 acting={acting}
@@ -289,6 +308,87 @@ export default function ReportTemplateDetailPage() {
   );
 }
 
+// ── SortableField ─────────────────────────────────────────────────────────────
+
+function SortableField({
+  field,
+  index,
+  editingFieldId,
+  setEditingFieldId,
+  saveField,
+  deleteField,
+  acting,
+  disabled,
+}: {
+  field: ReportTemplateField;
+  index: number;
+  editingFieldId: string | null;
+  setEditingFieldId: (id: string | null) => void;
+  saveField: (fieldId: string, payload: FieldPayload) => Promise<void>;
+  deleteField: (fieldId: string) => Promise<void>;
+  acting: boolean;
+  disabled: boolean;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: field.id,
+    disabled,
+  });
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.4 : 1 }}
+      className="border border-border rounded-lg"
+    >
+      {editingFieldId === field.id ? (
+        <div className="p-4">
+          <FieldFormInner
+            initialValues={{ label: field.label, type: field.type, required: field.required, options: field.options }}
+            onSubmit={(payload) => saveField(field.id, payload)}
+            onCancel={() => setEditingFieldId(null)}
+            acting={acting}
+          />
+        </div>
+      ) : (
+        <div className="flex items-center gap-3 px-3 py-2.5">
+          <button
+            type="button"
+            className={cn("touch-none text-muted-foreground shrink-0", disabled ? "cursor-default opacity-40" : "cursor-grab")}
+            {...attributes}
+            {...listeners}
+          >
+            <GripVertical className="h-4 w-4" />
+          </button>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="font-medium text-sm">{field.label}</span>
+              {field.required && (
+                <span className="text-xs px-1.5 py-0.5 rounded bg-red-100 text-red-700">Requerido</span>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {fieldTypeLabel[field.type as FieldType]}
+              {field.type === "MULTISELECT" && ` · ${field.options.length} opciones`}
+              {" · "}{index + 1}
+            </p>
+          </div>
+          <div className="flex gap-1 shrink-0">
+            <Button variant="ghost" size="sm" onClick={() => setEditingFieldId(field.id)}>Editar</Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-destructive hover:text-destructive"
+              onClick={() => deleteField(field.id)}
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── FieldFormInner owns its own form + options state ─────────────────────────
 
 function FieldFormInner({
@@ -297,7 +397,7 @@ function FieldFormInner({
   onCancel,
   acting,
 }: {
-  initialValues?: { label?: string; type?: FieldType; required?: boolean; order?: number; options?: string[] };
+  initialValues?: { label?: string; type?: FieldType; required?: boolean; options?: string[] };
   onSubmit: (payload: FieldPayload) => void;
   onCancel: () => void;
   acting: boolean;
@@ -308,7 +408,6 @@ function FieldFormInner({
       label: initialValues?.label ?? "",
       type: initialValues?.type ?? "TEXTAREA",
       required: initialValues?.required ?? false,
-      order: initialValues?.order ?? 0,
     },
   });
 
@@ -356,14 +455,11 @@ function FieldFormInner({
         </select>
       </div>
 
-      <div className="grid gap-1.5">
-        <Label>Orden</Label>
-        <Input type="number" min={1} {...register("order")} />
-      </div>
-
-      <div className="sm:col-span-2 flex items-center gap-2">
-        <input type="checkbox" id="req-field" className="h-4 w-4 rounded" {...register("required")} />
-        <Label htmlFor="req-field">Campo requerido</Label>
+      <div className="flex items-end pb-1">
+        <div className="flex items-center gap-2">
+          <input type="checkbox" id="req-field" className="h-4 w-4 rounded" {...register("required")} />
+          <Label htmlFor="req-field">Campo requerido</Label>
+        </div>
       </div>
 
       {/* Options editor — only for MULTISELECT */}

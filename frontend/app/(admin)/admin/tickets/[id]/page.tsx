@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { cn, statusColor, statusLabel, priorityColor, priorityLabel, formatDate } from "@/lib/utils";
+import { cn, statusColor, statusLabel, priorityColor, priorityLabel, formatDate, formatDateOnly } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
 import { ImageLightbox } from "@/components/ui/image-lightbox";
 import { ReportTemplateField, Policy } from "@/lib/types";
@@ -912,7 +912,7 @@ export default function AdminTicketDetailPage() {
                       ))}
                     </div>
                   ) : field.type === "DATE" ? (
-                    <p>{formatDate(value)}</p>
+                    <p>{formatDateOnly(value)}</p>
                   ) : (
                     <p>{value}</p>
                   )}

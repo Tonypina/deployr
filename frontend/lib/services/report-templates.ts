@@ -56,3 +56,7 @@ export async function updateTemplateField(templateId: string, fieldId: string, d
 export async function deleteTemplateField(templateId: string, fieldId: string) {
   await api.del(`/api/report-templates/${templateId}/fields/${fieldId}`);
 }
+
+export async function reorderTemplateField(templateId: string, fieldId: string, order: number) {
+  await api.put(`/api/report-templates/${templateId}/fields/${fieldId}`, { order });
+}

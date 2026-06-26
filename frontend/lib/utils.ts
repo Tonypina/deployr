@@ -11,6 +11,13 @@ export function formatDate(date: string | Date | undefined | null): string {
   return new Intl.DateTimeFormat("es-MX", { dateStyle: "medium", timeStyle: "short" }).format(new Date(date));
 }
 
+// Use for YYYY-MM-DD strings from DATE report fields — avoids UTC-to-local shift.
+export function formatDateOnly(dateStr: string | undefined | null): string {
+  if (!dateStr) return "—";
+  const [year, month, day] = dateStr.split("-").map(Number);
+  return new Intl.DateTimeFormat("es-MX", { dateStyle: "medium" }).format(new Date(year, month - 1, day));
+}
+
 export const statusLabel: Record<TicketStatus, string> = {
   REQUESTED: "Solicitado",
   PENDING_CLIENT_APPROVAL: "Aprobación del cliente",

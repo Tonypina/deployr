@@ -28,6 +28,16 @@ function fmtDate(d: Date | string | null | undefined): string {
   });
 }
 
+// Parses YYYY-MM-DD without UTC conversion to avoid timezone day-shift.
+function fmtDateOnly(rawVal: string): string {
+  const parts = rawVal.split("-").map(Number);
+  if (parts.length === 3 && parts.every((n) => !isNaN(n))) {
+    const [year, month, day] = parts;
+    return new Intl.DateTimeFormat("es-MX", { dateStyle: "medium" }).format(new Date(year, month - 1, day));
+  }
+  return fmtDate(rawVal);
+}
+
 function parseImageUrls(value: string | null | undefined): string[] {
   if (!value) return [];
   try {
@@ -399,7 +409,7 @@ export async function generateTicketPdf(ticketId: string): Promise<string | null
 
       } else {
         // TEXT, TEXTAREA, DATE, NUMBER
-        const displayVal = field.type === "DATE" ? fmtDate(rawVal) : rawVal;
+        const displayVal = field.type === "DATE" ? fmtDateOnly(rawVal) : rawVal;
         const isTextarea = field.type === "TEXTAREA" || displayVal.length > 80;
 
         if (isTextarea) {
