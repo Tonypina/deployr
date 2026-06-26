@@ -1,15 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { ChevronLeft, UserCheck, X, CheckCheck, FileText, Upload, ThumbsUp, RotateCcw, Pencil, MapPin, ClipboardList, Download, ShieldCheck, Calendar, RefreshCw } from "lucide-react";
+import { ChevronLeft, UserCheck, X, CheckCheck, FileText, Upload, ThumbsUp, RotateCcw, Pencil, MapPin, ClipboardList, Download, ShieldCheck, Calendar, RefreshCw, ImagePlus, PencilLine, Check } from "lucide-react";
 import { useTicket } from "@/lib/hooks/use-ticket";
 import { useTechnicians } from "@/lib/hooks/use-technicians";
 import { assignTicket, closeTicket as closeTicketService, cancelTicket as cancelTicketService, submitReview as submitReviewService, approveTicket as approveTicketService, reopenTicket as reopenTicketService, setQuotation as setQuotationService, sendQuotation as sendQuotationService, rejectTicket as rejectTicketService, addTicketToPolicy as addTicketToPolicyService, reassignTicket as reassignTicketService, rescheduleTicket as rescheduleTicketService, takeOverTicket as takeOverTicketService } from "@/lib/services/tickets";
 import { listPolicies } from "@/lib/services/policies";
 import { updateReport as updateReportService, submitReport as submitReportService } from "@/lib/services/reports";
-import { uploadPdf } from "@/lib/services/upload";
+import { uploadPdf, resizeToBlob, uploadImage } from "@/lib/services/upload";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -29,11 +29,218 @@ function parseImages(value: string): string[] {
   }
 }
 
+function PhotoField({
+  value,
+  onChange,
+  onRegisterFile,
+  onUnregisterFile,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  onRegisterFile: (objectUrl: string, file: File) => void;
+  onUnregisterFile: (objectUrl: string) => void;
+}) {
+  const images = parseImages(value);
+
+  function handleFiles(files: File[]) {
+    if (!files.length) return;
+    const newUrls = files.map((file) => {
+      const objectUrl = URL.createObjectURL(file);
+      onRegisterFile(objectUrl, file);
+      return objectUrl;
+    });
+    onChange(JSON.stringify([...images, ...newUrls]));
+  }
+
+  return (
+    <div className="grid gap-2">
+      <label className="inline-flex w-fit cursor-pointer">
+        <input
+          type="file"
+          accept="image/*"
+          multiple
+          className="sr-only"
+          onChange={(e) => {
+            const files = Array.from(e.target.files ?? []);
+            e.target.value = "";
+            handleFiles(files);
+          }}
+        />
+        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-input bg-background text-sm font-medium hover:bg-muted/50 transition-colors">
+          <ImagePlus className="h-3.5 w-3.5" />Agregar imágenes
+        </span>
+      </label>
+      {images.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {images.map((src, i) => (
+            <div key={src} className="relative group">
+              <img src={src} alt={`Imagen ${i + 1}`} className="h-20 w-20 rounded-md border border-border object-cover" />
+              <button
+                type="button"
+                onClick={() => {
+                  if (src.startsWith("blob:")) {
+                    onUnregisterFile(src);
+                    URL.revokeObjectURL(src);
+                  }
+                  onChange(JSON.stringify(images.filter((_, j) => j !== i)));
+                }}
+                className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                aria-label={`Quitar imagen ${i + 1}`}
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SignatureField({
+  value,
+  onChange,
+  onRegisterFile,
+  onUnregisterFile,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  onRegisterFile: (objectUrl: string, file: File) => void;
+  onUnregisterFile: (objectUrl: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [hasDrawn, setHasDrawn] = useState(false);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const isDrawing = useRef(false);
+  const currentSig = parseImages(value)[0];
+
+  useEffect(() => {
+    if (!open) return;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = ""; };
+  }, [open]);
+
+  function getPos(canvas: HTMLCanvasElement, e: MouseEvent | Touch) {
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    return { x: (e.clientX - rect.left) * scaleX, y: (e.clientY - rect.top) * scaleY };
+  }
+
+  useEffect(() => {
+    if (!open) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    function startDraw(e: MouseEvent) { isDrawing.current = true; const ctx = canvas!.getContext("2d")!; const pos = getPos(canvas!, e); ctx.beginPath(); ctx.moveTo(pos.x, pos.y); }
+    function draw(e: MouseEvent) { if (!isDrawing.current) return; const ctx = canvas!.getContext("2d")!; ctx.lineWidth = 2.5; ctx.lineCap = "round"; ctx.lineJoin = "round"; ctx.strokeStyle = "#1e293b"; const pos = getPos(canvas!, e); ctx.lineTo(pos.x, pos.y); ctx.stroke(); setHasDrawn(true); }
+    function endDraw() { isDrawing.current = false; }
+    function startDrawTouch(e: TouchEvent) { e.preventDefault(); isDrawing.current = true; const ctx = canvas!.getContext("2d")!; const pos = getPos(canvas!, e.touches[0]); ctx.beginPath(); ctx.moveTo(pos.x, pos.y); }
+    function drawTouch(e: TouchEvent) { if (!isDrawing.current) return; e.preventDefault(); const ctx = canvas!.getContext("2d")!; ctx.lineWidth = 2.5; ctx.lineCap = "round"; ctx.lineJoin = "round"; ctx.strokeStyle = "#1e293b"; const pos = getPos(canvas!, e.touches[0]); ctx.lineTo(pos.x, pos.y); ctx.stroke(); setHasDrawn(true); }
+    function endDrawTouch() { isDrawing.current = false; }
+
+    canvas.addEventListener("mousedown", startDraw);
+    canvas.addEventListener("mousemove", draw);
+    canvas.addEventListener("mouseup", endDraw);
+    canvas.addEventListener("mouseleave", endDraw);
+    canvas.addEventListener("touchstart", startDrawTouch, { passive: false });
+    canvas.addEventListener("touchmove", drawTouch, { passive: false });
+    canvas.addEventListener("touchend", endDrawTouch);
+
+    return () => {
+      canvas.removeEventListener("mousedown", startDraw);
+      canvas.removeEventListener("mousemove", draw);
+      canvas.removeEventListener("mouseup", endDraw);
+      canvas.removeEventListener("mouseleave", endDraw);
+      canvas.removeEventListener("touchstart", startDrawTouch);
+      canvas.removeEventListener("touchmove", drawTouch);
+      canvas.removeEventListener("touchend", endDrawTouch);
+    };
+  }, [open]);
+
+  function clearCanvas() {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    canvas.getContext("2d")!.clearRect(0, 0, canvas.width, canvas.height);
+    setHasDrawn(false);
+  }
+
+  function confirmSig() {
+    const canvas = canvasRef.current;
+    if (!canvas || !hasDrawn) { setOpen(false); return; }
+    const old = parseImages(value)[0];
+    if (old?.startsWith("blob:")) { onUnregisterFile(old); URL.revokeObjectURL(old); }
+    const flat = document.createElement("canvas");
+    flat.width = canvas.width; flat.height = canvas.height;
+    const flatCtx = flat.getContext("2d")!;
+    flatCtx.fillStyle = "#ffffff"; flatCtx.fillRect(0, 0, flat.width, flat.height);
+    flatCtx.drawImage(canvas, 0, 0);
+    flat.toBlob((blob) => {
+      if (!blob) return;
+      const file = new File([blob], "signature.png", { type: "image/png" });
+      const objectUrl = URL.createObjectURL(blob);
+      onRegisterFile(objectUrl, file);
+      onChange(JSON.stringify([objectUrl]));
+    }, "image/png");
+    setOpen(false);
+  }
+
+  function clearSignature() {
+    const old = parseImages(value)[0];
+    if (old?.startsWith("blob:")) { onUnregisterFile(old); URL.revokeObjectURL(old); }
+    onChange("");
+  }
+
+  return (
+    <>
+      <div className="grid gap-2">
+        {currentSig ? (
+          <>
+            <img src={currentSig} alt="Firma" className="h-28 max-w-xs rounded-md border border-border object-contain bg-white" />
+            <div className="flex gap-2 flex-wrap">
+              <button type="button" onClick={() => { setHasDrawn(false); setOpen(true); }} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-input bg-background text-sm font-medium hover:bg-muted/50 transition-colors">
+                <PencilLine className="h-3.5 w-3.5" />Volver a firmar
+              </button>
+              <button type="button" onClick={clearSignature} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-input bg-background text-sm font-medium text-destructive hover:bg-muted/50 transition-colors">
+                <X className="h-3.5 w-3.5" />Eliminar firma
+              </button>
+            </div>
+          </>
+        ) : (
+          <button type="button" onClick={() => { setHasDrawn(false); setOpen(true); }} className="inline-flex w-fit items-center gap-2 px-4 py-2 rounded-md border border-input bg-background text-sm font-medium hover:bg-muted/50 transition-colors">
+            <PencilLine className="h-4 w-4" />Firmar aquí
+          </button>
+        )}
+      </div>
+      {open && (
+        <div className="fixed inset-0 z-50 flex flex-col bg-white">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-border shrink-0">
+            <div>
+              <p className="font-semibold text-sm">Firma</p>
+              <p className="text-xs text-muted-foreground">Dibuja tu firma en el área de abajo</p>
+            </div>
+            <div className="flex gap-2">
+              <button type="button" onClick={clearCanvas} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-input bg-background text-sm font-medium hover:bg-muted/50 transition-colors"><X className="h-3.5 w-3.5" />Limpiar</button>
+              <button type="button" onClick={() => setOpen(false)} className="inline-flex items-center px-3 py-1.5 rounded-md border border-input bg-background text-sm font-medium hover:bg-muted/50 transition-colors">Cancelar</button>
+              <button type="button" onClick={confirmSig} disabled={!hasDrawn} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-primary text-primary-foreground text-sm font-medium disabled:opacity-40 hover:bg-primary/90 transition-colors"><Check className="h-3.5 w-3.5" />Confirmar</button>
+            </div>
+          </div>
+          <div className="flex-1 relative bg-slate-50">
+            <canvas ref={canvasRef} width={1200} height={800} className="absolute inset-0 w-full h-full touch-none cursor-crosshair" />
+            {!hasDrawn && <div className="absolute inset-0 flex items-center justify-center pointer-events-none select-none"><p className="text-muted-foreground text-sm">Dibuja aquí</p></div>}
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
 export default function AdminTicketDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { ticket, report, template, loading, setTicket, refetch } = useTicket(id);
   const { technicians: allTechnicians } = useTechnicians();
   const technicians = allTechnicians.filter((t) => t.isActive);
+  const pendingFilesRef = useRef<Map<string, File>>(new Map());
   const [acting, setActing] = useState(false);
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
   const [pdfFile, setPdfFile] = useState<File | null>(null);
@@ -134,10 +341,32 @@ export default function AdminTicketDetailPage() {
     }
   }
 
+  async function uploadPendingImages(responses: Record<string, string>): Promise<Record<string, string>> {
+    const final = { ...responses };
+    await Promise.all(
+      Object.entries(final).map(async ([fieldId, value]) => {
+        const images = parseImages(value);
+        if (!images.some((img) => img.startsWith("blob:"))) return;
+        const uploaded = await Promise.all(
+          images.map(async (img) => {
+            if (!img.startsWith("blob:")) return img;
+            const file = pendingFilesRef.current.get(img);
+            if (!file) return img;
+            const resized = await resizeToBlob(file);
+            return uploadImage(resized, file.name.replace(/\.[^.]+$/, ".jpg"));
+          })
+        );
+        final[fieldId] = JSON.stringify(uploaded);
+      })
+    );
+    return final;
+  }
+
   async function handleUpdateReport() {
     setUpdatingReport(true);
     try {
-      await updateReportService(id, reportEdits);
+      const finalResponses = await uploadPendingImages(reportEdits);
+      await updateReportService(id, finalResponses);
       await refetch();
       toast({ title: "Reporte actualizado", description: "El ticket volvió a estado Completado" });
     } catch (e) {
@@ -297,7 +526,8 @@ export default function AdminTicketDetailPage() {
   async function handleAdminSubmitReport() {
     setSubmittingReport(true);
     try {
-      await submitReportService(id, reportEdits, { requiresSpareParts: false, spareParts: [] });
+      const finalResponses = await uploadPendingImages(reportEdits);
+      await submitReportService(id, finalResponses, { requiresSpareParts: false, spareParts: [] });
       await refetch();
       toast({ title: "Reporte enviado", description: "El ticket pasó a estado Completado." });
     } catch (e) {
@@ -311,25 +541,23 @@ export default function AdminTicketDetailPage() {
     const baseClass = "flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
     if (field.type === "PHOTO") {
-      const images = parseImages(value);
-      if (!images.length) return <p className="text-sm text-muted-foreground">Sin imágenes</p>;
       return (
-        <div className="flex flex-wrap gap-2">
-          {images.map((src, i) => (
-            <button key={i} type="button" onClick={() => setLightboxSrc(src)} className="shrink-0">
-              <img src={src} alt={`Imagen ${i + 1}`} className="h-20 w-20 rounded-md border border-border object-cover hover:opacity-80 transition-opacity cursor-zoom-in" />
-            </button>
-          ))}
-        </div>
+        <PhotoField
+          value={value}
+          onChange={onChange}
+          onRegisterFile={(url, file) => pendingFilesRef.current.set(url, file)}
+          onUnregisterFile={(url) => pendingFilesRef.current.delete(url)}
+        />
       );
     }
     if (field.type === "SIGNATURE") {
-      const src = parseImages(value)[0];
-      if (!src) return <p className="text-sm text-muted-foreground">Sin firma</p>;
       return (
-        <button type="button" onClick={() => setLightboxSrc(src)} className="inline-block">
-          <img src={src} alt="Firma" className="h-24 max-w-xs rounded-md border border-border object-contain bg-white hover:opacity-80 transition-opacity cursor-zoom-in" />
-        </button>
+        <SignatureField
+          value={value}
+          onChange={onChange}
+          onRegisterFile={(url, file) => pendingFilesRef.current.set(url, file)}
+          onUnregisterFile={(url) => pendingFilesRef.current.delete(url)}
+        />
       );
     }
     if (field.type === "TEXTAREA") {
